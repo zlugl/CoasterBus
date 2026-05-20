@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book Ticket</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+    #gcashQR canvas { border-radius: 8px; display: block; margin: 0 auto; }
+    #paymentProof { border: 2px dashed var(--primary, #04383f); background: #f8f9fa; cursor: pointer; padding: 0.5rem; border-radius: 6px; }
+    #paymentProof:hover { background: #e9ecef; }
+    .terms-box { background: #f8f9fa; padding: 0.75rem; border-radius: 6px; font-size: 0.9rem; margin-top: 1rem; }
+    .terms-link { color: var(--primary, #04383f); cursor: pointer; text-decoration: underline; }
+    .payment-card { background: #fff; padding: 1.25rem; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); border: 1px solid #e0e0e0; }
+    .text-muted { color: #6c757d; } .text-sm { font-size: 0.875rem; } .text-danger { color: #dc3545; } .text-center { text-align: center; }
+    .bus-list { display: flex; flex-direction: column; gap: 0.75rem; max-height: 320px; overflow-y: auto; padding: 0.25rem; }
+    .bus-card { background: #fff; border: 2px solid #e0e0e0; border-radius: 10px; padding: 1rem; cursor: pointer; transition: all 0.2s ease; position: relative; }
+    .bus-card:hover { border-color: var(--primary, #04383f); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(4, 56, 63, 0.15); }
+    .bus-card.selected { border-color: var(--success, #28a745); background: #f0fff4; box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2); }
+    .bus-card.full { background: #f8f9fa; border-color: #dee2e6; cursor: not-allowed; opacity: 0.75; }
+    .bus-card.full:hover { transform: none; box-shadow: none; }
+    .bus-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px dashed #e0e0e0; }
+    .bus-number { font-weight: bold; font-size: 1.1rem; color: var(--primary, #04383f); }
+    .bus-status { font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 20px; font-weight: 500; }
+    .bus-status.available { background: #d4edda; color: #155724; }
+    .bus-status.full { background: #f8d7da; color: #721c24; }
+    .bus-detail { display: flex; justify-content: space-between; font-size: 0.9rem; margin: 0.35rem 0; color: #495057; }
+    .bus-detail-label { color: #6c757d; font-weight: 500; }
+    .bus-seats { font-weight: 600; }
+    .bus-seats.low { color: #fd7e14; }
+    .bus-seats.full { color: #dc3545; }
+    .bus-crew { font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #f1f1f1; }
+    .py-4 { padding: 1rem 0; }
+    #route:disabled { background: #e9ecef; cursor: not-allowed; }
+    .auto-badge { display: inline-block; padding: 2px 8px; background: #e3f2fd; color: #1976d2; border-radius: 12px; font-size: 0.75rem; font-weight: 500; margin-left: 0.5rem; }
+    .gcash-instructions { background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; font-size: 0.9rem; }
+    .gcash-instructions ol { margin: 0.5rem 0 0 1.25rem; padding-left: 0.5rem; }
+    .gcash-instructions li { margin: 0.25rem 0; }
+    .proof-preview { margin-top: 0.75rem; text-align: center; }
+    .proof-preview img { max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid #e5e7eb; }
+    .proof-preview .file-info { font-size: 0.85rem; color: #64748b; margin-top: 0.5rem; }
+    .upload-hint { font-size: 0.8rem; color: #64748b; margin-top: 0.25rem; }
+    .payment-success { background: #dcfce7; border: 1px solid #22c55e; color: #166534; padding: 0.75rem; border-radius: 8px; margin: 1rem 0; display: none; }
+    .payment-success.show { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="student-home.html" class="btn btn-primary mb-4" style="text-decoration:none;">← Back</a>
+    <div class="step-indicator">
+      <div class="step active" id="s1"><div class="step-num">1</div><div class="step-label">Info</div></div>
+      <div class="step" id="s2"><div class="step-num">2</div><div class="step-label">Route</div></div>
+      <div class="step" id="s3"><div class="step-num">3</div><div class="step-label">Confirm</div></div>
+      <div class="step" id="s4"><div class="step-num">4</div><div class="step-label">Pay</div></div>
+      <div class="step" id="s5"><div class="step-num">5</div><div class="step-label">Ticket</div></div>
+    </div>
+
+    <!-- Step 1: Info -->
+    <div id="step1" class="step-content card">
+      <h2 class="mb-4" style="color:var(--primary);">🎫 BOOK TICKET</h2>
+      <div class="form-group">
+        <label>Student ID</label>
+        <input type="text" id="studId" class="form-control" placeholder="e.g., 2024-00123">
+        <div class="note-box">⚠️ You must bring and show your physical student ID when boarding.</div>
+      </div>
+      <div class="grid grid-3">
+        <div class="form-group"><label>First Name</label><input type="text" id="fn" class="form-control"></div>
+        <div class="form-group"><label>Middle Name</label><input type="text" id="mn" class="form-control"></div>
+        <div class="form-group"><label>Last Name</label><input type="text" id="ln" class="form-control"></div>
+      </div>
+      <div class="grid grid-2">
+        <div class="form-group">
+          <label>From</label>
+          <select id="from" class="form-control">
+            <option value="">-- Select --</option>
+            <option>Roxas</option>
+            <option>Mansalay</option>
+            <option>Bulalacao</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>To</label>
+          <select id="to" class="form-control">
+            <option value="">-- Select --</option>
+            <option>Roxas</option>
+            <option>Mansalay</option>
+            <option>Bulalacao</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Route <span id="autoBadge" class="auto-badge hidden">🤖 Auto-selected</span></label>
+        <select id="route" class="form-control">
+          <option value="">-- Select --</option>
+          <option value="Roxas → Mansalay → Bulalacao">Roxas → Mansalay → Bulalacao</option>
+          <option value="Bulalacao → Mansalay → Roxas">Bulalacao → Mansalay → Roxas</option>
+        </select>
+        <small class="text-muted" id="routeHint">💡 Select From/To to auto-fill route, or choose manually</small>
+      </div>
+      <div class="form-group"><label>Travel Date</label><input type="date" id="date" class="form-control" min=""></div>
+      <div class="flex-between mt-4"><div></div><button id="btnNext1" class="btn btn-primary">Find Available Bus →</button></div>
+    </div>
+
+    <!-- Step 2: Bus -->
+    <div id="step2" class="step-content card hidden">
+      <h2 class="mb-4" style="color:var(--primary);">🚌 SELECT BUS</h2>
+      <div class="form-group">
+        <label>Available Buses</label>
+        <div id="busList" class="bus-list"><div class="text-center text-muted py-4">Loading buses...</div></div>
+        <input type="hidden" id="selectedBusId" value="">
+        <small class="text-muted">💡 Click a card to select. Grayed cards are fully booked.</small>
+      </div>
+      <div class="flex-between mt-4"><button id="btnBack1" class="btn">← Back</button><button id="btnNext2" class="btn btn-primary">Next →</button></div>
+    </div>
+
+    <!-- Step 3: Confirm -->
+    <div id="step3" class="step-content card hidden">
+      <h2 class="mb-4" style="color:var(--primary);">✅ CONFIRM</h2>
+      <div class="form-group"><label>Pickup</label>
+        <div class="grid grid-2">
+          <button type="button" id="btnTerm" class="btn btn-primary">🏢 Terminal</button>
+          <button type="button" id="btnDada" class="btn">📍 Dadaanan</button>
+        </div>
+        <input type="hidden" id="pickup" value="TERMINAL">
+        <div class="form-group" id="locationInput" style="display: none; margin-top: 1rem;">
+          <label>Pickup Location</label>
+          <input type="text" id="pickupLocation" class="form-control" placeholder="Enter your pickup location (e.g., Barangay Hall, School, etc.)" maxlength="100">
+        </div>
+      </div>
+      <div class="form-group"><label>Seat</label><div id="seatMap" class="seat-grid"></div></div>
+      <div class="form-group"><label>Payment</label>
+        <select id="pay" class="form-control"><option value="">-- Select --</option><option value="gcash">GCash</option><option value="cash">Cash on Hand</option></select>
+      </div>
+      <div class="flex-between mt-4"><button id="btnBack2" class="btn">← Back</button><button id="btnConfirm" class="btn btn-success">Confirm →</button></div>
+    </div>
+
+    <!-- Step 4: Payment -->
+    <div id="step4" class="step-content card hidden">
+      <h2 class="mb-4" style="color:var(--primary);">💳 PAYMENT</h2>
+      
+      <!-- GCash Section -->
+      <div id="gcashSection" class="hidden">
+        <div class="payment-card">
+          <h4>📱 GCash Payment</h4>
+          <div class="gcash-instructions">
+            <strong>How to pay:</strong>
+            <ol>
+              <li>Open your GCash app</li>
+              <li>Tap <strong>Scan QR</strong></li>
+              <li>Scan the QR code below</li>
+              <li>Enter amount: <strong>₱<span id="amtG">0</span></strong></li>
+              <li>Confirm payment</li>
+              <li>Take a screenshot of the successful transaction</li>
+              <li>Upload the screenshot below</li>
+            </ol>
+          </div>
+          <div style="text-align:center; margin:1rem 0;">
+            <div id="gcashQR" style="display:inline-block; padding:0.5rem; background:#fff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1);"></div>
+            <p class="text-muted text-sm" style="margin-top:0.5rem;">🔐 Official GCash Payment QR</p>
+            <p class="text-sm text-muted" style="margin-top:0.25rem;">
+              <strong>Merchant:</strong> Student Bus Ticketing • <strong>Amount:</strong> ₱<span id="amtG2">0</span>
+            </p>
+          </div>
+          <div class="form-group" style="margin-top:1rem;">
+            <label>📎 Upload Payment Proof</label>
+            <input type="file" id="paymentProof" class="form-control" accept="image/*,.pdf" style="padding:0.5rem;">
+            <p class="upload-hint">📸 Upload screenshot of your GCash transaction or PDF receipt (Max 5MB)</p>
+            <div id="previewContainer" style="margin-top:0.75rem; display:none;">
+              <div class="proof-preview">
+                <img id="proofPreview" src="" alt="Payment proof preview" style="display:none;">
+                <div class="file-info">
+                  ✓ File selected: <strong id="fileName"></strong><br>
+                  <span id="fileSize" class="text-muted"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="paymentSuccess" class="payment-success">
+            ✅ Payment proof uploaded! Click "Confirm Payment" to complete your booking.
+          </div>
+          <div class="terms-box">
+            <label><input type="checkbox" id="agreeG"> I agree to <span class="terms-link" onclick="alert('Terms: Non-transferable, 24h cancel policy, exact cash for COD. GCash payments are final. Refunds processed within 3-5 business days.')">Terms & Conditions</span></label>
+          </div>
+          <button id="btnPayG" class="btn btn-success" style="width:100%; margin-top:1rem;" disabled>Confirm Payment ₱<span id="amtG3">0</span></button>
+        </div>
+      </div>
+      
+      <!-- Cash Section -->
+      <div id="cashSection" class="hidden">
+        <div class="payment-card">
+          <h4>💵 Cash Instructions</h4>
+          <ul style="margin:1rem 0; padding-left:1.5rem;">
+            <li>Prepare exact: ₱80 (Roxas↔Bulalacao), ₱40 (Mansalay↔Roxas)</li>
+            <li>Bring this page or Ticket ID</li>
+            <li>Pay conductor when boarding</li>
+            <li>Keep receipt as proof</li>
+          </ul>
+          <div class="terms-box">
+            <label><input type="checkbox" id="agreeC"> I agree to <span class="terms-link" onclick="alert('Terms: Non-transferable, 24h cancel policy, exact cash for COD')">Terms & Conditions</span></label>
+          </div>
+        </div>
+        <button id="btnPayC" class="btn btn-success" style="width:100%;">Confirm Booking</button>
+      </div>
+      
+      <div class="flex-between mt-4"><button id="btnBack3" class="btn">← Back</button></div>
+    </div>
+
+    <!-- Step 5: Ticket -->
+    <div id="step5" class="step-content card hidden text-center">
+      <h2 class="mb-4" style="color:var(--success);">🎫 CONFIRMED!</h2>
+      <div class="ticket-paper" id="ticketPaper">
+        <div class="ticket-header">
+          <h3>🚌 STUDENT BUS TICKET</h3>
+          <p class="text-muted" id="tRef">REF: TKT-000000</p>
+        </div>
+        <div class="ticket-section">
+          <div class="ticket-row"><span>Student ID:</span><span id="tSid"></span></div>
+          <div class="ticket-row"><span>Name:</span><span id="tName"></span></div>
+        </div>
+        <div class="ticket-section">
+          <div class="ticket-row"><span>Route:</span><span id="tRoute"></span></div>
+          <div class="ticket-row"><span>From → To:</span><span id="tFromTo"></span></div>
+          <div class="ticket-row"><span>Date:</span><span id="tDate"></span></div>
+        </div>
+        <div class="ticket-section">
+          <div class="ticket-row"><span>Bus:</span><span id="tBus"></span></div>
+          <div class="ticket-row"><span>Seat #:</span><span id="tSeat"></span></div>
+          <div class="ticket-row"><span>Pickup:</span><span id="tPickup"></span></div>
+        </div>
+        <div class="ticket-section">
+          <div class="ticket-row"><span>Payment:</span><span id="tPay"></span></div>
+          <div class="ticket-row"><span>Amount:</span><span id="tAmt" style="color:var(--success); font-weight:bold;"></span></div>
+          <div class="ticket-row"><span>Status:</span><span class="badge badge-success">CONFIRMED</span></div>
+        </div>
+        <div class="ticket-qr">
+          <div id="ticketQR"></div>
+          <p class="text-muted text-sm">📱 Scan to verify</p>
+        </div>
+      </div>
+      <div class="mt-4 flex-between" style="max-width:440px; margin:auto; gap:0.75rem; justify-content:center; flex-wrap:wrap;">
+        <button onclick="location.href='student-home.html'" class="btn">View in Account</button>
+        <button type="button" class="btn btn-secondary" onclick="showTicketQR()">🔍 View QR</button>
+        <button id="btnSave" class="btn btn-primary">💾 Save as Image</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="ticketQRModal" class="receipt-modal">
+    <div class="receipt-paper" style="text-align:center;">
+      <h3>🎫 Ticket QR</h3>
+      <div id="ticketQRLarge" style="margin: 0 auto;"></div>
+      <button class="receipt-close" onclick="document.getElementById('ticketQRModal').style.display='none'">Close</button>
+    </div>
+  </div>
+
+  <script>
+    // Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAQkX9xz-H0hc1EHG-bJYAkaQIUMPxrk5I",
+      authDomain: "cbfu-ad11f.firebaseapp.com",
+      databaseURL: "https://cbfu-ad11f-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "cbfu-ad11f",
+      storageBucket: "cbfu-ad11f.firebasestorage.app",
+      messagingSenderId: "251609733997",
+      appId: "1:251609733997:web:af865a60d2b3ad6fe39864"
+    };
+    
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+    
+    // Auth check
+    auth.onAuthStateChanged(u => {
+      if (!u) { window.location.href = 'index.html'; return; }
+      document.getElementById('date').min = new Date().toISOString().split('T')[0];
+    });
+
+    let booking = {};
+    let currentStep = 1;
+
+    // Auto-route logic
+    function getAutoRoute(from, to) {
+      if (!from || !to || from === to) return '';
+      const forward = ['Roxas', 'Mansalay', 'Bulalacao'];
+      const reverse = ['Bulalacao', 'Mansalay', 'Roxas'];
+      const fromIdxF = forward.indexOf(from), toIdxF = forward.indexOf(to);
+      const fromIdxR = reverse.indexOf(from), toIdxR = reverse.indexOf(to);
+      if (fromIdxF !== -1 && toIdxF !== -1 && fromIdxF < toIdxF) return 'Roxas → Mansalay → Bulalacao';
+      if (fromIdxR !== -1 && toIdxR !== -1 && fromIdxR < toIdxR) return 'Bulalacao → Mansalay → Roxas';
+      return '';
+    }
+
+    function updateRouteDropdown() {
+      const from = document.getElementById('from').value;
+      const to = document.getElementById('to').value;
+      const routeSelect = document.getElementById('route');
+      const autoBadge = document.getElementById('autoBadge');
+      const routeHint = document.getElementById('routeHint');
+      const autoRoute = getAutoRoute(from, to);
+      if (autoRoute) {
+        routeSelect.value = autoRoute;
+        routeSelect.disabled = true;
+        autoBadge.classList.remove('hidden');
+        routeHint.textContent = '✅ Route auto-selected based on your From/To';
+        routeHint.style.color = 'var(--success)';
+      } else {
+        routeSelect.disabled = false;
+        routeSelect.value = '';
+        autoBadge.classList.add('hidden');
+        routeHint.textContent = '💡 Select From/To to auto-fill route, or choose manually';
+        routeHint.style.color = '#6c757d';
+      }
+    }
+
+    document.getElementById('from').addEventListener('change', updateRouteDropdown);
+    document.getElementById('to').addEventListener('change', updateRouteDropdown);
+
+    function calculateFare(from, to) {
+      if (!from || !to) return 0;
+      return (from === 'Roxas' && to === 'Bulalacao') || (from === 'Bulalacao' && to === 'Roxas') ? 80 : 40;
+    }
+
+    function showStep(step) {
+      document.querySelectorAll('.step-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById('step' + step).classList.remove('hidden');
+      document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+      document.getElementById('s' + step).classList.add('active');
+      currentStep = step;
+      if (step === 2 && booking.route) loadBuses();
+      if (step === 3 && booking.bus) renderSeats();
+      if (step === 4) setupPayment();
+    }
+
+    // Step 1 → 2
+    document.getElementById('btnNext1').onclick = () => {
+      const studId = document.getElementById('studId').value.trim();
+      const fn = document.getElementById('fn').value.trim();
+      const ln = document.getElementById('ln').value.trim();
+      const from = document.getElementById('from').value;
+      const to = document.getElementById('to').value;
+      const route = document.getElementById('route').value;
+      const date = document.getElementById('date').value;
+      if (!studId || !fn || !ln || !from || !to || !route || !date) { alert('⚠️ Please fill all required fields'); return; }
+      if (from === to) { alert('⚠️ From and To cannot be the same'); return; }
+      booking = { studId, fn, mn: document.getElementById('mn').value.trim(), ln, from, to, route, date };
+      booking.amt = calculateFare(from, to);
+      showStep(2);
+    };
+
+    // Step 2 → 3
+    document.getElementById('btnNext2').onclick = () => {
+      const busId = document.getElementById('selectedBusId').value;
+      if (!busId) { alert('⚠️ Please select a bus'); return; }
+      booking.bus = busId;
+      showStep(3);
+    };
+
+    // Pickup selection
+    document.getElementById('btnTerm').onclick = () => {
+      document.getElementById('pickup').value = 'TERMINAL';
+      document.getElementById('locationInput').style.display = 'none';
+      document.getElementById('btnTerm').classList.add('btn-primary');
+      document.getElementById('btnDada').classList.remove('btn-primary');
+    };
+    document.getElementById('btnDada').onclick = () => {
+      document.getElementById('pickup').value = 'LOCATION';
+      document.getElementById('locationInput').style.display = 'block';
+      document.getElementById('btnDada').classList.add('btn-primary');
+      document.getElementById('btnTerm').classList.remove('btn-primary');
+    };
+
+    // Step 3 → 4
+    document.getElementById('btnConfirm').onclick = () => {
+      if (!booking.seat) { alert('⚠️ Please select a seat'); return; }
+      const pay = document.getElementById('pay').value;
+      if (!pay) { alert('⚠️ Please select payment method'); return; }
+      if (document.getElementById('pickup').value === 'LOCATION' && !document.getElementById('pickupLocation').value.trim()) {
+        alert('⚠️ Please enter your pickup location'); return;
+      }
+      booking.pay = pay;
+      booking.pickup = document.getElementById('pickup').value;
+      booking.pickupLocation = document.getElementById('pickupLocation').value.trim();
+      showStep(4);
+    };
+
+    // ✅ WORKING: Setup Payment UI - Shows correct section based on booking.pay
+    function setupPayment() {
+      document.getElementById('amtG').textContent = booking.amt;
+      document.getElementById('amtG2').textContent = booking.amt;
+      document.getElementById('amtG3').textContent = booking.amt;
+      
+      // Generate GCash QR - Working implementation
+      const gcashQRData = `https://qr.ph/gcash?merchant=StudentBus&amount=${booking.amt}`;
+      document.getElementById('gcashQR').innerHTML = '';
+      
+      function generateQR() {
+        if (typeof QRCode !== 'undefined') {
+          new QRCode(document.getElementById('gcashQR'), { 
+            text: gcashQRData, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.H 
+          });
+        } else {
+          setTimeout(generateQR, 200);
+        }
+      }
+      generateQR();
+      
+      // Payment toggle - shows section based on selection
+      function updatePaymentUI(method) {
+        document.getElementById('gcashSection').classList.add('hidden');
+        document.getElementById('cashSection').classList.add('hidden');
+        document.getElementById('btnPayG').disabled = true;
+        document.getElementById('paymentSuccess').classList.remove('show');
+        
+        if (method === 'gcash') {
+          document.getElementById('gcashSection').classList.remove('hidden');
+          document.getElementById('paymentProof').value = '';
+          document.getElementById('previewContainer').style.display = 'none';
+          document.getElementById('proofPreview').style.display = 'none';
+          booking.paymentProof = null;
+        } else if (method === 'cash') {
+          document.getElementById('cashSection').classList.remove('hidden');
+        }
+      }
+      
+      const paySelect = document.getElementById('pay');
+      paySelect.onchange = (e) => {
+        updatePaymentUI(e.target.value);
+      };
+      
+      // ✅ CRITICAL FIX: Show correct section immediately based on booking.pay from Step 3
+      if (booking.pay === 'gcash') {
+        paySelect.value = 'gcash';
+        updatePaymentUI('gcash');
+      } else if (booking.pay === 'cash') {
+        paySelect.value = 'cash';
+        updatePaymentUI('cash');
+      }
+      
+      // Receipt Upload Handler - Working file preview
+      const paymentProofInput = document.getElementById('paymentProof');
+      const previewContainer = document.getElementById('previewContainer');
+      const proofPreview = document.getElementById('proofPreview');
+      const fileName = document.getElementById('fileName');
+      const fileSize = document.getElementById('fileSize');
+      const paymentSuccess = document.getElementById('paymentSuccess');
+      const btnPayG = document.getElementById('btnPayG');
+      
+      paymentProofInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+        if (!validTypes.includes(file.type)) {
+          alert('⚠️ Please upload a JPG, PNG, or PDF file');
+          paymentProofInput.value = '';
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          alert('⚠️ File too large. Maximum size is 5MB');
+          paymentProofInput.value = '';
+          return;
+        }
+        
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            proofPreview.src = event.target.result;
+            proofPreview.style.display = 'block';
+          };
+          reader.readAsDataURL(file);
+        } else {
+          proofPreview.style.display = 'none';
+        }
+        
+        fileName.textContent = file.name;
+        fileSize.textContent = `Size: ${(file.size / 1024).toFixed(1)} KB`;
+        previewContainer.style.display = 'block';
+        
+        booking.paymentProof = {
+          name: file.name, type: file.type, size: file.size, uploadedAt: new Date().toISOString()
+        };
+        
+        paymentSuccess.classList.add('show');
+        btnPayG.disabled = false;
+      };
+    }
+
+    // GCash payment confirm
+    document.getElementById('btnPayG').onclick = () => {
+      if (!document.getElementById('agreeG').checked) { alert('⚠️ Please agree to Terms & Conditions'); return; }
+      if (!booking.paymentProof) { alert('⚠️ Please upload payment proof'); return; }
+      genTicket();
+    };
+    
+    // Cash payment confirm
+    document.getElementById('btnPayC').onclick = () => {
+      if (!document.getElementById('agreeC').checked) { alert('⚠️ Please agree to Terms & Conditions'); return; }
+      genTicket();
+    };
+
+    // Generate ticket and save to Firebase
+function genTicket() {
+  const ref = 'TKT-' + Date.now().toString().slice(-6);
+  const name = (booking.fn + ' ' + booking.mn + ' ' + booking.ln).trim();
+  const user = auth.currentUser;
+  if (!user) { alert('Session expired. Please log in again.'); window.location.href = 'index.html'; return; }
+  
+  const selectedCard = document.querySelector('.bus-card.selected');
+  const busName = selectedCard ? selectedCard.querySelector('.bus-number')?.textContent.replace('🚌 ', '').trim() : 'Bus';
+  
+  let busSchedule = null;
+  if (selectedCard) {
+    const timeText = selectedCard.querySelector('.bus-detail span strong')?.nextSibling?.textContent;
+    if (timeText) {
+      const timeMatch = timeText.match(/(\d{2}:\d{2})/);
+      if (timeMatch) busSchedule = timeMatch[1];
+    }
+  }
+  
+  const ticketData = {
+    id: ref, userId: user.uid, busId: booking.bus, busName: busName, studentName: name,
+    studentId: booking.studId, route: booking.route, from: booking.from, to: booking.to,
+    date: booking.date, schedule: busSchedule, seat: booking.seat, pickup: booking.pickup,
+    pickupLocation: booking.pickupLocation || null, fare: booking.amt,
+    paymentMethod: booking.pay === 'gcash' ? 'GCASH' : 'CASH',
+    paymentProof: booking.paymentProof ? {
+      fileName: booking.paymentProof.name, fileType: booking.paymentProof.type,
+      fileSize: booking.paymentProof.size, uploadedAt: booking.paymentProof.uploadedAt
+    } : null,
+    status: 'CONFIRMED', refundStatus: null,
+    cancellationDeadline: Date.now() + (24 * 60 * 60 * 1000),
+    createdAt: firebase.database.ServerValue.TIMESTAMP
+  };
+  
+  db.ref('tickets').push(ticketData).then(() => {
+    // Populate ticket display
+    document.getElementById('tRef').textContent = 'REF: ' + ref;
+    document.getElementById('tSid').textContent = booking.studId;
+    document.getElementById('tName').textContent = name;
+    document.getElementById('tRoute').textContent = booking.route;
+    document.getElementById('tFromTo').textContent = booking.from + ' → ' + booking.to;
+    document.getElementById('tDate').textContent = new Date(booking.date).toLocaleDateString('en-PH');
+    document.getElementById('tBus').textContent = busName;
+    document.getElementById('tSeat').textContent = '#' + booking.seat;
+    document.getElementById('tPickup').textContent = booking.pickup === 'LOCATION' ? (booking.pickupLocation || 'Dadaanan') : 'Terminal';
+    document.getElementById('tPay').textContent = booking.pay === 'gcash' ? 'GCash' : 'Cash';
+    document.getElementById('tAmt').textContent = '₱' + booking.amt;
+    
+    // ✅ FIXED: Minimal QR data to prevent overflow
+    const qrData = ref; // Just the ticket reference ID
+    document.getElementById('ticketQR').innerHTML = '';
+    document.getElementById('ticketQRLarge').innerHTML = '';
+    if (typeof QRCode !== 'undefined') {
+      new QRCode(document.getElementById('ticketQR'), { 
+        text: qrData, width: 100, height: 100, correctLevel: QRCode.CorrectLevel.M 
+      });
+      new QRCode(document.getElementById('ticketQRLarge'), { 
+        text: qrData, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M 
+      });
+    }
+    showStep(5);
+  }).catch(err => { console.error('❌ Save failed:', err); alert('❌ Booking failed: ' + err.message); });
+}
+
+    // Render seat map with real-time availability
+    function renderSeats() {
+      const map = document.getElementById('seatMap');
+      map.innerHTML = '<div class="text-center text-muted py-4">Loading seats...</div>';
+      db.ref('tickets').orderByChild('busId').equalTo(booking.bus).once('value').then(s => {
+        const booked = [];
+        s.forEach(c => { const t = c.val(); if (t.status === 'CONFIRMED' && t.seat) booked.push(t.seat); });
+        map.innerHTML = '';
+        for (let i = 1; i <= 20; i++) {
+          const d = document.createElement('div');
+          const occ = booked.includes(i);
+          d.className = 'seat-btn ' + (occ ? 'occupied' : 'available');
+          d.textContent = i;
+          if (!occ) {
+            d.onclick = () => {
+              document.querySelectorAll('.seat-btn').forEach(x => x.classList.remove('selected'));
+              d.classList.add('selected');
+              booking.seat = i;
+            };
+          }
+          map.appendChild(d);
+        }
+      }).catch(err => { map.innerHTML = '<div class="text-center text-danger py-4">Error loading seats</div>'; });
+    }
+
+    // Load available buses from Firebase
+    function normalizeRoute(route) { return route?.toLowerCase().replace(/\s+/g, '').replace(/[→-]/g, ''); }
+    function formatTime12(timeStr) {
+      if (!timeStr) return 'N/A';
+      const [h, m] = timeStr.split(':');
+      const hr = parseInt(h), mn = parseInt(m);
+      const ap = hr >= 12 ? 'PM' : 'AM';
+      return `${String(hr % 12 || 12).padStart(2, '0')}:${String(mn).padStart(2, '0')} ${ap}`;
+    }
+    
+    function loadBuses() {
+      const list = document.getElementById('busList');
+      list.innerHTML = '<div class="text-center text-muted py-4">🔍 Searching available buses...</div>';
+      const normRoute = normalizeRoute(booking.route);
+      db.ref('buses').orderByChild('date').equalTo(booking.date).once('value').then(snap => {
+        const buses = [];
+        snap.forEach(c => buses.push({ id: c.key, ...c.val() }));
+        const match = buses.filter(b => normalizeRoute(b.route) === normRoute);
+        list.innerHTML = '';
+        if (match.length === 0) {
+          list.innerHTML = `<div class="text-center text-muted py-4">😔 No buses for ${booking.date} on this route.</div>`;
+          return;
+        }
+        match.forEach(bus => {
+          db.ref('tickets').orderByChild('busId').equalTo(bus.id).once('value').then(ts => {
+            const booked = Object.values(ts.val() || {}).filter(t => t.date === booking.date && t.status === 'CONFIRMED').length;
+            const avail = 20 - booked, full = avail <= 0;
+            const card = document.createElement('div');
+            card.className = `bus-card ${full ? 'full' : ''}`;
+            card.dataset.busId = bus.id;
+            if (!full) {
+              card.onclick = () => {
+                document.querySelectorAll('.bus-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                document.getElementById('selectedBusId').value = bus.id;
+              };
+            }
+            card.innerHTML = `
+              <div class="bus-card-header">
+                <span class="bus-number">🚌 ${bus.number || 'Bus'}</span>
+                <span class="bus-status ${full ? 'full' : 'available'}">${full ? '● FULL' : '● ' + avail + ' left'}</span>
+              </div>
+              <div class="bus-detail"><span class="bus-detail-label">📅 Date & Time:</span><span><strong>${booking.date}</strong> • ${formatTime12(bus.schedule)}</span></div>
+              <div class="bus-detail"><span class="bus-detail-label">💺 Seats:</span><span class="bus-seats ${avail <= 5 && !full ? 'low' : ''} ${full ? 'full' : ''}">${avail}/20</span></div>
+              <div class="bus-detail"><span class="bus-detail-label">👥 Crew:</span><span>${bus.driver || 'TBA'} • ${bus.conductor || 'TBA'}</span></div>
+            `;
+            list.appendChild(card);
+          });
+        });
+      }).catch(err => { list.innerHTML = `<div class="text-center text-danger py-4">Error: ${err.message}</div>`; });
+    }
+
+    // Back buttons
+    document.getElementById('btnBack1').onclick = () => showStep(1);
+    document.getElementById('btnBack2').onclick = () => showStep(2);
+    document.getElementById('btnBack3').onclick = () => showStep(3);
+
+    // Save ticket as image
+    document.getElementById('btnSave').onclick = () => {
+      html2canvas(document.getElementById('ticketPaper'), { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = 'bus-ticket-' + booking.studId + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+    };
+
+    // View QR modal
+    window.showTicketQR = () => { document.getElementById('ticketQRModal').style.display = 'flex'; };
+    window.onclick = (e) => { if (e.target.classList.contains('receipt-modal')) e.target.style.display = 'none'; };
+
+    // Initialize
+    showStep(1);
+  </script>
+</body>
+</html>

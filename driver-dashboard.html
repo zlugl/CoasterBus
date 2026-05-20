@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Driver Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+    :root { --primary:#04383f; --success:#28a745; --warning:#ffc107; --danger:#dc3545; --bg:#f8f9fa; --card:#fff; --border:#dee2e6; --muted:#6c757d; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: #212529; line-height: 1.5; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+    .card { background: var(--card); border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 1rem; }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+    .btn { padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.9; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-success { background: var(--success); color: white; }
+    .mb-4 { margin-bottom: 1rem; }
+    .text-center { text-align: center; }
+    .text-muted { color: var(--muted); }
+    .hidden { display: none; }
+    
+    /* Bus Info Card */
+    .bus-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem; }
+    .info-item { background: #f8f9fa; padding: 0.75rem; border-radius: 8px; border-left: 4px solid var(--primary); }
+    .info-label { font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+    .info-value { font-weight: 600; color: #212529; margin-top: 0.25rem; }
+    
+    /* Passenger List */
+    .passenger-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .passenger-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
+    .passenger-info h4 { margin: 0 0 0.25rem 0; color: var(--primary); }
+    .passenger-info p { margin: 0.15rem 0; font-size: 0.9rem; color: #495057; }
+    .passenger-meta { text-align: right; }
+    .seat-badge { display: inline-block; padding: 0.25rem 0.75rem; background: var(--primary); color: white; border-radius: 20px; font-weight: 600; font-size: 0.9rem; }
+    .status-badge { padding: 0.25rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; color: white; display: inline-block; margin-top: 0.5rem; }
+    .status-CONFIRMED { background: var(--success); }
+    .status-PENDING { background: var(--warning); color: #212529; }
+    .status-BOARDED { background: #17a2b8; }
+    
+    /* Stats Bar */
+    .stats-bar { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .stat-card { flex: 1; min-width: 120px; background: linear-gradient(135deg, var(--primary), #065f5f); color: white; padding: 1rem; border-radius: 10px; text-align: center; }
+    .stat-number { font-size: 1.8rem; font-weight: 700; display: block; }
+    .stat-label { font-size: 0.85rem; opacity: 0.9; }
+    
+    /* Empty State */
+    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--muted); }
+    .empty-state .icon { font-size: 3rem; margin-bottom: 1rem; display: block; }
+    
+    /* Modal */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-content { background: white; padding: 1.5rem; border-radius: 12px; width: 90%; max-width: 400px; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+    .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); }
+    
+    @media (max-width: 768px) {
+      .passenger-card { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+      .passenger-meta { text-align: left; width: 100%; display: flex; justify-content: space-between; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="flex-between mb-4">
+      <div>
+        <h1 style="color:var(--primary); margin:0;">🚌 Driver Dashboard</h1>
+        <p class="text-muted" id="driverName">Loading...</p>
+      </div>
+      <button id="btnLogout" class="btn btn-danger">Logout</button>
+    </div>
+
+    <!-- Bus Assignment Card -->
+    <div class="card" id="busCard">
+      <h3 style="color:var(--primary); margin-bottom:0.5rem;">📋 Today's Assignment</h3>
+      <p class="text-muted" id="assignmentStatus">Checking assignment...</p>
+      
+      <div id="busDetails" class="hidden">
+        <div class="bus-info-grid">
+          <div class="info-item">
+            <div class="info-label">🚌 Bus Number</div>
+            <div class="info-value" id="busNumber">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">🛣️ Route</div>
+            <div class="info-value" id="busRoute">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">📅 Date & Time</div>
+            <div class="info-value" id="busSchedule">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">🎫 Conductor</div>
+            <div class="info-value" id="busConductor">-</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-bar" id="statsBar" style="display:none;">
+      <div class="stat-card">
+        <span class="stat-number" id="totalPassengers">0</span>
+        <span class="stat-label">Total Booked</span>
+      </div>
+      <div class="stat-card" style="background:linear-gradient(135deg, #28a745, #20c997);">
+        <span class="stat-number" id="boardedCount">0</span>
+        <span class="stat-label">Already Boarded</span>
+      </div>
+      <div class="stat-card" style="background:linear-gradient(135deg, #ffc107, #fd7e14);">
+        <span class="stat-number" id="pendingCount">0</span>
+        <span class="stat-label">Pending</span>
+      </div>
+    </div>
+
+    <!-- Passenger List -->
+    <div class="card">
+      <div class="flex-between mb-4">
+        <h3 style="color:var(--primary); margin:0;">🎫 Passenger Manifest</h3>
+        <button class="btn btn-primary" onclick="refreshList()">🔄 Refresh</button>
+      </div>
+      
+      <div id="passengerList" class="passenger-list">
+        <div class="empty-state">
+          <span class="icon">🔍</span>
+          <p>Loading passengers...</p>
+        </div>
+      </div>
+      
+      <p id="noPassengers" class="text-center text-muted hidden" style="padding:2rem;">
+        No passengers booked for this bus yet.
+      </p>
+    </div>
+  </div>
+
+  <!-- Passenger Detail Modal -->
+  <div id="passengerModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4 style="margin:0; color:var(--primary);">🎫 Passenger Details</h4>
+        <button class="close-btn" onclick="closeModal('passengerModal')">&times;</button>
+      </div>
+      <div id="passengerModalBody"></div>
+    </div>
+  </div>
+
+<script>
+    // 🔑 Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAQkX9xz-H0hc1EHG-bJYAkaQIUMPxrk5I",
+      authDomain: "cbfu-ad11f.firebaseapp.com",
+      databaseURL: "https://cbfu-ad11f-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "cbfu-ad11f",
+      storageBucket: "cbfu-ad11f.firebasestorage.app",
+      messagingSenderId: "251609733997",
+      appId: "1:251609733997:web:af865a60d2b3ad6fe39864"
+    };
+    
+    // ✅ Initialize Firebase ONCE
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    let currentUser = null;
+    let assignedBusId = null; // This will store the BUS UID after lookup
+    let assignedBusNumber = null; // This stores the bus number (e.g., "Bus 101")
+    let logoutHandlerAttached = false;
+
+    // 🚪 Logout function
+    async function handleLogout() {
+      try {
+        await auth.signOut();
+        currentUser = null;
+        assignedBusId = null;
+        assignedBusNumber = null;
+        setTimeout(() => { window.location.href = 'index.html'; }, 100);
+      } catch (error) {
+        console.error('❌ Logout error:', error);
+        alert('⚠️ Could not sign out. Please try again.');
+      }
+    }
+
+    // 🔐 Auth & Role Check
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) { window.location.href = 'index.html'; return; }
+      
+      currentUser = user;
+      
+      try {
+        const snap = await db.ref('users/' + user.uid).once('value');
+        const userData = snap.val();
+        
+        if (!userData || (userData.role !== 'DRIVER' && userData.role !== 'ADMIN')) {
+          alert('⚠️ Access denied. Driver account required.');
+          await auth.signOut();
+          window.location.href = userData?.role === 'CONDUCTOR' ? 'conductor-dashboard.html' : 'student-home.html';
+          return;
+        }
+        
+        document.getElementById('driverName').textContent = `👋 ${userData.name || 'Driver'}`;
+        
+        if (!logoutHandlerAttached) {
+          const logoutBtn = document.getElementById('btnLogout');
+          if (logoutBtn) {
+            logoutBtn.replaceWith(logoutBtn.cloneNode(true));
+            document.getElementById('btnLogout').addEventListener('click', handleLogout);
+            logoutHandlerAttached = true;
+          }
+        }
+        
+        await loadAssignedBus(userData);
+        
+      } catch (err) {
+        console.error('❌ Error:', err);
+        alert('⚠️ Error loading dashboard.');
+      }
+    });
+
+    // 🚌 Load driver's assigned bus - FIXED: Query by bus number field
+    async function loadAssignedBus(userData) {
+      const busNumber = userData.busId; // This is the BUS NUMBER (e.g., "Bus 101"), not UID
+      
+      if (!busNumber) {
+        document.getElementById('assignmentStatus').innerHTML = '⚠️ <strong>No bus assigned.</strong><br>Contact admin for assignment.';
+        document.getElementById('passengerList').innerHTML = '<div class="empty-state"><span class="icon">🚌</span><p>Waiting for bus assignment...</p></div>';
+        return;
+      }
+      
+      assignedBusNumber = busNumber;
+      
+      try {
+        // ✅ FIXED: Query buses by the "number" field, not by key
+        const busSnap = await db.ref('buses').orderByChild('number').equalTo(busNumber).once('value');
+        let bus = null;
+        let busUid = null;
+        
+        busSnap.forEach(child => {
+          bus = child.val();
+          busUid = child.key; // Get the actual Firebase UID
+        });
+        
+        if (!bus) {
+          document.getElementById('assignmentStatus').textContent = '❌ Bus "' + busNumber + '" not found.';
+          return;
+        }
+        
+        // ✅ Store the actual bus UID for ticket queries
+        assignedBusId = busUid;
+        
+        // Display bus details
+        document.getElementById('assignmentStatus').classList.add('hidden');
+        document.getElementById('busDetails').classList.remove('hidden');
+        document.getElementById('statsBar').style.display = 'flex';
+        
+        document.getElementById('busNumber').textContent = bus.number || 'N/A';
+        document.getElementById('busRoute').textContent = bus.route || 'N/A';
+        document.getElementById('busSchedule').textContent = 
+          `${bus.date ? new Date(bus.date).toLocaleDateString('en-PH', {weekday:'short', month:'short', day:'numeric'}) : 'N/A'} • ${formatTime12(bus.schedule)}`;
+        document.getElementById('busConductor').textContent = bus.conductor || 'TBA';
+        
+        // 🎫 Load passengers using the ACTUAL bus UID
+        loadPassengers(assignedBusId);
+      } catch (err) {
+        console.error('❌ Error loading bus:', err);
+        document.getElementById('assignmentStatus').textContent = '❌ Error loading bus details.';
+      }
+    }
+
+    // 🎫 Load & display passengers for the bus - Uses bus UID
+    function loadPassengers(busUid) {
+      const list = document.getElementById('passengerList');
+      const noPassengers = document.getElementById('noPassengers');
+      
+      // ✅ Query tickets by the actual bus UID
+      db.ref('tickets').orderByChild('busId').equalTo(busUid).on('value', (snapshot) => {
+        list.innerHTML = '';
+        const tickets = [];
+        snapshot.forEach(child => tickets.push({ id: child.key, ...child.val() }));
+        
+        const confirmed = tickets.filter(t => t.status === 'CONFIRMED');
+        
+        if (confirmed.length === 0) {
+          noPassengers.classList.remove('hidden');
+          updateStats(0, 0, 0);
+          return;
+        }
+        noPassengers.classList.add('hidden');
+        
+        confirmed.sort((a, b) => (a.seat || 99) - (b.seat || 99));
+        
+        let boarded = 0;
+        let pending = 0;
+        
+        confirmed.forEach(ticket => {
+          const isBoarded = ticket.boarded === true;
+          if (isBoarded) boarded++; else pending++;
+          
+          const pickupDisplay = ticket.pickup === 'LOCATION' 
+            ? (ticket.pickupLocation || 'Dadaanan') 
+            : 'Main Terminal';
+          
+          list.innerHTML += `
+            <div class="passenger-card">
+              <div class="passenger-info">
+                <h4>🎓 ${ticket.studentName || 'Unknown'}</h4>
+                <p>🆔 ${ticket.studentId || 'N/A'}</p>
+                <p>📍 ${pickupDisplay}</p>
+                <span class="status-badge status-${isBoarded ? 'BOARDED' : 'CONFIRMED'}">
+                  ${isBoarded ? '✅ BOARDED' : '⏳ CONFIRMED'}
+                </span>
+              </div>
+              <div class="passenger-meta">
+                <span class="seat-badge">#${ticket.seat || '?'}</span>
+                <p style="margin-top:0.5rem; font-weight:600;">₱${ticket.fare || 0}</p>
+                <button class="btn btn-primary" style="margin-top:0.5rem; font-size:0.8rem;" 
+                        onclick="showPassengerDetail('${ticket.id}')">👁️ Details</button>
+              </div>
+            </div>
+          `;
+        });
+        
+        updateStats(confirmed.length, boarded, pending);
+      });
+    }
+
+    // 📊 Update stats display
+    function updateStats(total, boarded, pending) {
+      document.getElementById('totalPassengers').textContent = total;
+      document.getElementById('boardedCount').textContent = boarded;
+      document.getElementById('pendingCount').textContent = pending;
+    }
+
+    // 👁️ Show passenger detail modal
+    window.showPassengerDetail = (ticketId) => {
+      db.ref('tickets/' + ticketId).once('value').then(snap => {
+        const t = snap.val();
+        if (!t) return;
+        
+        const pickupDisplay = t.pickup === 'LOCATION' 
+          ? (t.pickupLocation || 'Dadaanan') 
+          : 'Main Terminal';
+        
+        document.getElementById('passengerModalBody').innerHTML = `
+          <div style="line-height:1.8;">
+            <p><strong>🎓 Student:</strong> ${t.studentName || 'N/A'}</p>
+            <p><strong>🆔 ID Number:</strong> ${t.studentId || 'N/A'}</p>
+            <p><strong>🪑 Seat:</strong> #${t.seat || 'N/A'}</p>
+            <p><strong>📍 Pickup:</strong> ${pickupDisplay}</p>
+            <p><strong>💰 Fare:</strong> ₱${t.fare || 0}</p>
+            <p><strong>💳 Payment:</strong> ${t.paymentMethod || 'N/A'}</p>
+            <p><strong>📅 Booked:</strong> ${t.bookedAt ? new Date(t.bookedAt).toLocaleString() : 'N/A'}</p>
+            <p><strong>🎫 Status:</strong> 
+              <span class="status-badge status-${t.boarded ? 'BOARDED' : 'CONFIRMED'}" style="margin-left:0.5rem;">
+                ${t.boarded ? '✅ BOARDED' : '⏳ CONFIRMED'}
+              </span>
+            </p>
+          </div>
+        `;
+        document.getElementById('passengerModal').style.display = 'flex';
+      });
+    };
+
+    // 🔁 Refresh passenger list
+    window.refreshList = () => {
+      if (assignedBusId) loadPassengers(assignedBusId);
+    };
+
+    // 🕐 Format time helper
+    function formatTime12(timeStr) {
+      if (!timeStr) return 'N/A';
+      const [h, m] = timeStr.split(':');
+      const hr = parseInt(h), mn = parseInt(m);
+      const ap = hr >= 12 ? 'PM' : 'AM';
+      return `${String(hr % 12 || 12).padStart(2, '0')}:${String(mn).padStart(2, '0')} ${ap}`;
+    }
+
+    // ❌ Close modal
+    window.closeModal = (id) => { document.getElementById(id).style.display = 'none'; };
+    window.onclick = (e) => { if (e.target.classList.contains('modal')) e.target.style.display = 'none'; };
+
+    <!-- Add this at the bottom of driver-dashboard.html, before </body> -->
+// GPS Tracking Setup (Only for Drivers)
+if (navigator.geolocation && currentUserRole === 'DRIVER') {
+  const locationRef = db.ref('busLocations/' + assignedBusNumber);
+  let watchId = null;
+
+  // Start tracking when page loads
+  watchId = navigator.geolocation.watchPosition(
+    (position) => {
+      const { latitude: lat, longitude: lng } = position.coords;
+      locationRef.set({
+        lat,
+        lng,
+        lastUpdate: firebase.database.ServerValue.TIMESTAMP,
+        speed: position.coords.speed || 0
+      });
+    },
+    (error) => {
+      console.warn('⚠️ GPS Error:', error.message);
+      showToast('📍 GPS permission denied or unavailable.', 'error');
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    }
+  );
+
+  // Stop tracking when driver leaves the page
+  window.addEventListener('beforeunload', () => {
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  });
+}
+
+  </script>
+</body>
+</html>

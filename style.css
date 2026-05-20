@@ -1,0 +1,349 @@
+/* =========================================
+BASE SYSTEM STYLES (Login, Dashboard, etc.)
+========================================= */
+:root {
+  --primary: #04383f;
+  --primary-hover: #06525c;
+  --primary-bg: #e6f4f5;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #ca8a04;
+  --bg: #f4f7f8;
+  --card: #ffffff;
+  --text: #1e293b;
+  --muted: #64748b;
+  --border: #cbd5e1;
+  --gcash: #0077ff;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+body { background: var(--bg); color: var(--text); min-height: 100vh; }
+.container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.btn { display: inline-block; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 500; cursor: pointer; transition: 0.2s; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-sm { padding: 0.4rem 0.8rem; font-size: 0.875rem; }
+
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--muted); }
+.form-control { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
+.form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(4, 56, 63, 0.1); }
+select.form-control { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 20px; padding-right: 2.5rem; }
+
+.grid { display: grid; gap: 1rem; }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.mt-2 { margin-top: 0.5rem; } .mt-4 { margin-top: 1rem; } .mb-4 { margin-bottom: 1rem; }
+.text-center { text-align: center; } .text-muted { color: var(--muted); } .font-bold { font-weight: 600; }
+.hidden { display: none !important; }
+
+.note-box { background: #fffbeb; border: 1px solid #f59e0b; color: #92400e; padding: 0.75rem; border-radius: 8px; font-size: 0.875rem; margin-top: 0.5rem; }
+
+.step-indicator { display: flex; justify-content: space-between; margin-bottom: 2rem; position: relative; }
+.step-indicator::before { content: ''; position: absolute; top: 15px; left: 0; right: 0; height: 3px; background: var(--border); z-index: 0; }
+.step { position: relative; z-index: 1; background: var(--bg); padding: 0 0.5rem; text-align: center; }
+.step-num { width: 30px; height: 30px; background: var(--border); color: var(--muted); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; margin-bottom: 0.25rem; }
+.step.active .step-num { background: var(--primary); color: #fff; }
+.step.completed .step-num { background: var(--success); color: #fff; }
+.step-label { font-size: 0.75rem; color: var(--muted); }
+
+.badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.75rem; font-weight: 600; }
+.badge-success { background: #dcfce7; color: var(--success); }
+.badge-warning { background: #fef9c3; color: var(--warning); }
+.badge-danger { background: #fee2e2; color: var(--danger); }
+
+/* =========================================
+THS GUI BOOKING STYLES (PDF Match)
+========================================= */
+.booking-wrapper { display: grid; grid-template-columns: 1.8fr 1fr; gap: 24px; width: 100%; }
+
+.ticket-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 1.5rem;
+}
+
+.ticket-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #d1d5db;
+  border-radius: 18px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.ticket-card .ticket-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.ticket-card .ticket-status {
+  padding: 0.25rem 0.6rem;
+  color: #ffffff;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ticket-card .ticket-body {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.ticket-card .ticket-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.ticket-card .ticket-row span {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.ticket-card .ticket-row strong {
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.ticket-card .ticket-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.btn-ticket {
+  padding: 0.35rem 0.65rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 0.8rem;
+  min-width: 0;
+}
+
+.btn-ticket:hover { background: var(--primary-hover); }
+
+.btn-cancel {
+  background: var(--danger);
+}
+
+.btn-delete {
+  background: var(--danger);
+  color: white;
+  padding: 0.6rem 0.95rem;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.ticket-paper,
+.receipt-paper {
+  width: 380px;
+  max-width: 380px;
+  min-height: 500px;
+  border-radius: 20px;
+  border: 3px solid var(--primary);
+  background: #ffffff;
+  padding: 24px;
+  box-shadow: 0 18px 32px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+}
+
+#step5 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ticket-paper .ticket-header,
+.receipt-paper h3 {
+  text-align: center;
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.ticket-paper .ticket-header p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.ticket-paper .ticket-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ticket-paper .ticket-row:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.ticket-paper .ticket-row span:first-child {
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 500;
+  flex: 0 0 100px;
+}
+
+.ticket-paper .ticket-row span:last-child,
+.ticket-paper .ticket-row strong {
+  color: #1e293b;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: right;
+  flex: 1;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.ticket-qr {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--border);
+}
+
+.ticket-paper .ticket-section {
+  margin-bottom: 1rem;
+}
+
+.ticket-paper .ticket-section:not(:last-of-type) {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.8rem;
+}
+
+.route-header-card {
+  background: var(--primary); color: white; padding: 24px; margin-bottom: 24px; border-radius: 12px;
+  display: flex; justify-content: space-between; align-items: center; width: 100%;
+  box-shadow: 0 4px 12px rgba(4, 56, 63, 0.25);
+}
+.route-info h2 { margin: 0; color: white; font-size: 1.25rem; }
+.route-info p { margin: 6px 0 0; color: rgba(255,255,255,0.85); font-weight: 400; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.route-info.center { text-align: center; }
+.bus-badge {
+  background: rgba(255,255,255,0.15); color: white; padding: 8px 20px; border-radius: 50px;
+  font-weight: 700; font-size: 1.2rem; border: 2px solid rgba(255,255,255,0.3);
+}
+
+.form-card, .summary-card {
+  background: white; border: 1px solid var(--border); padding: 24px; border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.form-card h3, .summary-card h3 {
+  margin-top: 0; margin-bottom: 20px; color: var(--primary);
+  border-bottom: 2px solid var(--primary-bg); padding-bottom: 10px; font-size: 1.1rem;
+}
+
+.input-group { margin-bottom: 16px; }
+.input-group label { display: block; font-weight: 600; margin-bottom: 6px; color: var(--text); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.3px; }
+.input-group input, .input-group select {
+  width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 14px; outline: none; background: #f9fafb; transition: 0.2s;
+}
+.input-group input:focus, .input-group select:focus { border-color: var(--primary); background: white; }
+
+.phone-input { display: flex; gap: 8px; }
+.phone-prefix { width: 70px; background: #e2e8f0; text-align: center; padding: 12px; border-radius: 8px; border: 1px solid var(--border); color: #475569; font-weight: 600; }
+
+.seat-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 12px;
+  padding: 16px; background: #f8fafc; border-radius: 10px; border: 2px dashed var(--border);
+}
+.seat-btn {
+  aspect-ratio: 1; border: 2px solid #cbd5e1; background: white; border-radius: 8px;
+  cursor: pointer; font-weight: 600; color: #64748b; display: flex; align-items: center; justify-content: center;
+  font-size: 0.95rem; transition: all 0.2s;
+}
+.seat-btn:hover { border-color: var(--primary); color: var(--primary); }
+.seat-btn.selected { background: var(--primary); color: white; border-color: var(--primary); }
+.seat-btn.occupied { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; border-color: #cbd5e1; }
+
+.summary-item { display: flex; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; font-size: 0.95rem; color: #475569; }
+.summary-total { display: flex; justify-content: space-between; font-size: 1.3rem; font-weight: 800; color: var(--primary); margin: 16px 0; border-top: 2px solid var(--primary); padding-top: 12px; }
+
+.gcash-box {
+  background: linear-gradient(135deg, #0077ff, #0056b3); color: white; padding: 18px; border-radius: 10px; margin-bottom: 20px;
+}
+.gcash-box h4 { margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; font-size: 0.95rem; font-weight: 600; }
+.gcash-input { background: white; color: black; border: none; padding: 10px; width: 100%; border-radius: 6px; margin-bottom: 8px; font-size: 0.95rem; }
+
+.btn-proceed {
+  width: 100%; background: var(--success); color: white; padding: 14px; font-size: 1.1rem;
+  border: none; border-radius: 8px; cursor: pointer; font-weight: 700; letter-spacing: 0.5px;
+  transition: background 0.2s, transform 0.1s;
+}
+.btn-proceed:hover { background: #15803d; transform: translateY(-1px); }
+.btn-proceed:active { transform: translateY(0); }
+
+.receipt-modal {
+  display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(4, 56, 63, 0.6); z-index: 1000; justify-content: center; align-items: center;
+  backdrop-filter: blur(4px);
+}
+.receipt-paper {
+  background: white; padding: 16px; width: 210px; font-family: 'Courier New', monospace;
+  border-top: 8px solid var(--primary); box-shadow: 0 8px 18px rgba(0,0,0,0.18);
+  position: relative; border-radius: 10px;
+}
+.receipt-paper h3 { text-align: center; margin-bottom: 14px; letter-spacing: 1.2px; font-size: 1rem; color: var(--primary); }
+.receipt-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; color: #334155; }
+.receipt-divider { border-top: 2px dashed #cbd5e1; margin: 18px 0; }
+.receipt-close {
+  background: var(--primary); color: white; border: none; padding: 10px 16px; width: auto;
+  cursor: pointer; margin-top: 16px; border-radius: 6px; font-family: system-ui; font-weight: 600;
+}
+.receipt-close:hover { background: var(--primary-hover); }
+
+/* =========================================
+DELETE BUTTON STYLE (NEW)
+========================================= */
+.btn-delete {
+  background: var(--danger);
+  color: white;
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+.btn-delete:hover { background: #b91c1c; }
+.btn-delete:active { transform: translateY(0); }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .booking-wrapper { grid-template-columns: 1fr; }
+  .route-header-card { flex-direction: column; text-align: center; gap: 16px; }
+  .route-info.center { text-align: center; }
+}

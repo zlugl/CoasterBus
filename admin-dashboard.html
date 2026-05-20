@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+    :root { --primary:#04383f; --success:#28a745; --warning:#ffc107; --danger:#dc3545; --bg:#f8f9fa; --card:#fff; --border:#dee2e6; --muted:#6c757d; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: #212529; line-height: 1.5; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 1rem; }
+    .card { background: var(--card); border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 1rem; }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+    .flex-center { display: flex; align-items: center; gap: 0.5rem; }
+    .btn { padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s; font-size: 0.9rem; }
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-warning { background: var(--warning); color: #212529; }
+    .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    .text-center { text-align: center; }
+    .text-muted { color: var(--muted); }
+    .text-success { color: var(--success); }
+    .text-danger { color: var(--danger); }
+    .hidden { display: none !important; }
+    .grid { display: grid; gap: 1rem; }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; margin-bottom: 0.35rem; font-weight: 500; color: #495057; font-size: 0.9rem; }
+    .form-control { width: 100%; padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; transition: border-color 0.2s; }
+    .form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(4,56,63,0.1); }
+    .form-control:read-only { background: #f3f4f6; cursor: not-allowed; }
+    
+    /* Admin Bus List Styles */
+    .admin-bus-list { display: flex; flex-direction: column; gap: 0.75rem; padding: 0.25rem; }
+    .admin-bus-card { background: #fff; border: 2px solid #e0e0e0; border-radius: 10px; padding: 1rem; position: relative; transition: box-shadow 0.2s; }
+    .admin-bus-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.1); border-color: var(--primary); }
+    .admin-bus-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px dashed #e0e0e0; }
+    .admin-bus-number { font-weight: bold; font-size: 1.1rem; color: var(--primary); }
+    .admin-bus-detail { display: flex; justify-content: space-between; font-size: 0.9rem; margin: 0.35rem 0; color: #495057; align-items: center; }
+    .admin-bus-detail-label { color: #6c757d; font-weight: 500; min-width: 120px; }
+    .admin-bus-seats { font-weight: 600; cursor: pointer; color: var(--primary); text-decoration: underline; }
+    .admin-bus-seats.low { color: #fd7e14; }
+    .admin-bus-seats.full { color: #dc3545; cursor: not-allowed; text-decoration: none; }
+    .admin-bus-crew { font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #f1f1f1; display: flex; gap: 1rem; flex-wrap: wrap; }
+    .crew-badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.6rem; background: #f8f9fa; border-radius: 20px; font-size: 0.8rem; }
+    .crew-badge.driver { background: #e3f2fd; color: #1976d2; }
+    .crew-badge.conductor { background: #e8f5e9; color: #388e3c; }
+    .crew-badge.unassigned { background: #fff3e0; color: #ef6c00; font-style: italic; }
+    .admin-bus-actions { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed #e0e0e0; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .admin-bus-actions .btn-action { flex: 1; min-width: 80px; text-align: center; }
+    
+    /* Staff Assignment Styles */
+    .staff-select { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .staff-select select { flex: 1; min-width: 150px; padding: 0.4rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; }
+    .staff-select .btn { padding: 0.4rem 0.8rem; font-size: 0.85rem; }
+    
+    /* Modal Styles */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; padding: 1rem; }
+    .modal.active { display: flex; }
+    .modal-content { background: white; padding: 1.5rem; border-radius: 12px; width: 100%; max-width: 600px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 2px solid var(--border); position: sticky; top: 0; background: white; z-index: 1; }
+    .close-btn { cursor: pointer; font-size: 1.5rem; background: none; border: none; color: var(--muted); padding: 0.25rem; line-height: 1; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+    .close-btn:hover { background: #f1f5f9; color: var(--danger); }
+    
+    /* Ticket & Seat Styles */
+    .ticket-row { border-bottom: 1px solid #f1f5f9; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+    .ticket-row:last-child { border-bottom: none; }
+    .status-badge { padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; color: white; display: inline-flex; align-items: center; gap: 4px; }
+    .status-CONFIRMED { background: var(--success); }
+    .status-PENDING { background: var(--warning); color: #212529; }
+    .status-BOARDED { background: #17a2b8; }
+    
+    /* ✅ Trip Status Badges - Same as Student/Conductor */
+    .status-upcoming { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+    .status-upcoming::before { content: "📅"; }
+    .status-onboarding { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; animation: pulse 2s infinite; }
+    .status-onboarding::before { content: "🚌"; }
+    .status-finished { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+    .status-finished::before { content: "✅"; }
+    @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(251, 191, 36, 0); } }
+    
+    .py-4 { padding: 1rem 0; }
+    .seat-grid-admin { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 1rem 0; }
+    .seat-item { padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: center; font-size: 0.85rem; background: #f8f9fa; cursor: pointer; transition: all 0.2s; }
+    .seat-item.occupied { background: #d4edda; border-color: #28a745; }
+    .seat-item.occupied:hover { background: #c3e6cb; transform: scale(1.05); }
+    .seat-item.empty { background: #e9ecef; color: #6c757d; cursor: default; }
+    .seat-legend { display: flex; gap: 1.5rem; margin-bottom: 1rem; font-size: 0.85rem; flex-wrap: wrap; }
+    .seat-legend span { display: flex; align-items: center; gap: 0.4rem; }
+    .seat-legend .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .seat-legend .dot.occupied { background: #28a745; }
+    .seat-legend .dot.empty { background: #e9ecef; border: 1px solid #6c757d; }
+    .seat-legend .dot.boarded { background: #17a2b8; }
+    
+    /* Staff Management Table */
+    .staff-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+    .staff-table th, .staff-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+    .staff-table th { background: #f8f9fa; font-weight: 600; color: #495057; }
+    .staff-table tr:hover { background: #f8f9fa; }
+    .role-tag { padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+    .role-tag.driver { background: #e3f2fd; color: #1976d2; }
+    .role-tag.conductor { background: #e8f5e9; color: #388e3c; }
+    
+    /* Stats Cards */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+    .stat-card { background: linear-gradient(135deg, var(--primary), #065f5f); color: white; padding: 1rem; border-radius: 10px; text-align: center; }
+    .stat-number { font-size: 1.5rem; font-weight: 700; display: block; }
+    .stat-label { font-size: 0.8rem; opacity: 0.9; }
+    
+    /* Tabs */
+    .tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 1rem; flex-wrap: wrap; }
+    .tab-btn { flex: 1; min-width: 120px; padding: 0.75rem; background: none; border: none; font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.2s; border-bottom: 3px solid transparent; }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    
+    /* ✅ Style for disabled dropdown options (already assigned staff) */
+    select option:disabled { color: #999; font-style: italic; background: #f8f9fa; }
+    select option:checked:disabled { background: #e9ecef; }
+    
+    @media (max-width: 768px) {
+      .grid-3 { grid-template-columns: 1fr; }
+      .admin-bus-detail { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+      .admin-bus-detail-label { min-width: auto; }
+      .staff-select { flex-direction: column; align-items: stretch; }
+      .seat-grid-admin { grid-template-columns: repeat(4, 1fr); }
+      .tabs { flex-direction: column; }
+      .tab-btn { width: 100%; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="flex-between mb-4">
+      <h1 style="color:var(--primary); margin:0;">⚙️ Admin Panel</h1>
+      <div class="flex-center">
+        <span id="adminName" class="text-muted"></span>
+        <button id="btnLogout" class="btn btn-danger">Logout</button>
+      </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-number" id="totalBuses">0</span>
+        <span class="stat-label">🚌 Total Buses</span>
+      </div>
+      <div class="stat-card" style="background:linear-gradient(135deg,#28a745,#20c997);">
+        <span class="stat-number" id="totalDrivers">0</span>
+        <span class="stat-label">👨‍✈️ Drivers</span>
+      </div>
+      <div class="stat-card" style="background:linear-gradient(135deg,#17a2b8,#138496);">
+        <span class="stat-number" id="totalConductors">0</span>
+        <span class="stat-label">🎫 Conductors</span>
+      </div>
+      <div class="stat-card" style="background:linear-gradient(135deg,#6f42c1,#5a32a3);">
+        <span class="stat-number" id="totalBookings">0</span>
+        <span class="stat-label">🎫 Total Bookings</span>
+      </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('buses')">🚌 Bus Management</button>
+      <button class="tab-btn" onclick="switchTab('staff')">👥 Staff Management</button>
+    </div>
+
+    <!-- Tab: Bus Management -->
+    <div id="tab-buses" class="tab-content active">
+      <!-- Add Bus Form -->
+      <div class="card mb-4">
+        <h3 style="color:var(--primary); margin-bottom:1rem;">➕ Add New Bus</h3>
+        <form id="addBus" class="grid grid-3">
+          <div class="form-group">
+            <label>Bus Number</label>
+            <input id="bNum" class="form-control" readonly style="background: #f3f4f6; cursor: not-allowed;">
+            <small style="color: var(--muted); font-size: 0.8rem;">🔄 Auto-generated</small>
+          </div>
+          <div class="form-group">
+            <label>Route</label>
+            <select id="bRoute" class="form-control" required>
+              <option value="">Select Route</option>
+              <option value="Roxas → Mansalay → Bulalacao">Roxas → Mansalay → Bulalacao</option>
+              <option value="Bulalacao → Mansalay → Roxas">Bulalacao → Mansalay → Roxas</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Travel Date</label>
+            <input id="bDate" type="date" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Schedule (Time)</label>
+            <input id="bSched" type="time" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>👨‍✈️ Assign Driver</label>
+            <select id="bDriverSelect" class="form-control">
+              <option value="">-- Select Driver --</option>
+            </select>
+            <small style="color:var(--muted); font-size:0.8rem;">Or enter name manually:</small>
+            <input id="bDriverName" class="form-control" placeholder="Driver Name (if not in system)" style="margin-top:0.35rem;">
+          </div>
+          <div class="form-group">
+            <label>🎫 Assign Conductor</label>
+            <select id="bConductorSelect" class="form-control">
+              <option value="">-- Select Conductor --</option>
+            </select>
+            <small style="color:var(--muted); font-size:0.8rem;">Or enter name manually:</small>
+            <input id="bConductorName" class="form-control" placeholder="Conductor Name (if not in system)" style="margin-top:0.35rem;">
+          </div>
+          <div class="form-group" style="grid-column: span 3;">
+            <button type="submit" class="btn btn-primary" style="width:100%;">➕ Add Bus</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Bus List -->
+      <h3 style="color:var(--primary); margin-bottom:1rem;">🚌 Active Buses & Bookings</h3>
+      <div id="busList" class="admin-bus-list">
+        <div class="text-center text-muted py-4">Loading buses...</div>
+      </div>
+      <p id="noBuses" class="text-muted text-center mt-4 hidden">No buses found. Add one above.</p>
+    </div>
+
+    <!-- Tab: Staff Management -->
+    <div id="tab-staff" class="tab-content">
+      <div class="card">
+        <div class="flex-between mb-4">
+          <h3 style="color:var(--primary); margin:0;">👥 Registered Staff</h3>
+          <div class="flex-center">
+            <button class="btn btn-sm btn-primary" onclick="loadStaff()">🔄 Refresh</button>
+          </div>
+        </div>
+        
+        <div class="tabs" style="margin-bottom:1rem;">
+          <button class="tab-btn active" onclick="filterStaff('all')">All</button>
+          <button class="tab-btn" onclick="filterStaff('DRIVER')">👨‍✈️ Drivers</button>
+          <button class="tab-btn" onclick="filterStaff('CONDUCTOR')">🎫 Conductors</button>
+        </div>
+        
+        <div style="overflow-x:auto;">
+          <table class="staff-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Assigned Bus</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="staffTableBody">
+              <tr><td colspan="5" class="text-center text-muted py-4">Loading staff...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p id="noStaff" class="text-center text-muted hidden" style="padding:1rem;">No staff registered yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modals -->
+  
+  <!-- Edit Bus Modal -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="margin:0; color:var(--primary);">✏️ Edit Bus Details</h3>
+        <button class="close-btn" onclick="closeModal('editModal')">&times;</button>
+      </div>
+      <form id="editBusForm">
+        <input type="hidden" id="editBusId">
+        <div class="form-group">
+          <label>Bus Number</label>
+          <input id="editNum" class="form-control" readonly style="background: #f3f4f6; cursor: not-allowed;">
+        </div>
+        <div class="form-group">
+          <label>Route</label>
+          <select id="editRoute" class="form-control" required>
+            <option value="">Select Route</option>
+            <option value="Roxas → Mansalay → Bulalacao">Roxas → Mansalay → Bulalacao</option>
+            <option value="Bulalacao → Mansalay → Roxas">Bulalacao → Mansalay → Roxas</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Travel Date</label>
+          <input id="editDate" type="date" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label>Schedule (Time)</label>
+          <input id="editSched" type="time" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label>👨‍✈️ Driver</label>
+          <select id="editDriverSelect" class="form-control"></select>
+          <input id="editDriverName" class="form-control" placeholder="Or enter name manually" style="margin-top:0.35rem;">
+        </div>
+        <div class="form-group">
+          <label>🎫 Conductor</label>
+          <select id="editCondSelect" class="form-control"></select>
+          <input id="editCondName" class="form-control" placeholder="Or enter name manually" style="margin-top:0.35rem;">
+        </div>
+        <button type="submit" class="btn btn-success" style="width:100%">💾 Save Changes</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- View Tickets Modal -->
+  <div id="ticketsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="margin:0; color:var(--primary);">🎫 Passengers: <span id="ticketBusNum"></span></h3>
+        <button class="close-btn" onclick="closeModal('ticketsModal')">&times;</button>
+      </div>
+      <div id="ticketsList"></div>
+      <p id="noTickets" class="text-muted text-center" style="display:none; padding:20px;">No tickets booked for this bus yet.</p>
+    </div>
+  </div>
+
+  <!-- Seat Map Modal -->
+  <div id="seatsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="margin:0; color:var(--primary);">🪑 Seat Map: <span id="seatBusNum"></span></h3>
+        <button class="close-btn" onclick="closeModal('seatsModal')">&times;</button>
+      </div>
+      <div class="seat-legend">
+        <span><span class="dot occupied"></span> Booked</span>
+        <span><span class="dot boarded"></span> Boarded</span>
+        <span><span class="dot empty"></span> Available</span>
+      </div>
+      <div id="seatGridAdmin" class="seat-grid-admin"></div>
+      <div id="seatDetails" style="margin-top:1rem; padding:0.75rem; background:#f8f9fa; border-radius:6px; display:none;">
+        <strong>Selected Seat #<span id="selectedSeatNum"></span>:</strong>
+        <p id="seatPassengerInfo" style="margin:0.5rem 0 0 0; color:#495057;"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Assign Staff Modal -->
+  <div id="assignModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="margin:0; color:var(--primary);">👥 Assign Staff to <span id="assignBusNum"></span></h3>
+        <button class="close-btn" onclick="closeModal('assignModal')">&times;</button>
+      </div>
+      <input type="hidden" id="assignBusId">
+      
+      <div class="form-group">
+        <label>👨‍✈️ Driver</label>
+        <select id="assignDriverSelect" class="form-control">
+          <option value="">-- Unassigned --</option>
+        </select>
+        <small id="currentDriver" class="text-muted" style="display:block; margin-top:0.35rem;"></small>
+      </div>
+      
+      <div class="form-group">
+        <label>🎫 Conductor</label>
+        <select id="assignConductorSelect" class="form-control">
+          <option value="">-- Unassigned --</option>
+        </select>
+        <small id="currentConductor" class="text-muted" style="display:block; margin-top:0.35rem;"></small>
+      </div>
+      
+      <button class="btn btn-success" style="width:100%;" onclick="saveStaffAssignment()">💾 Save Assignment</button>
+    </div>
+  </div>
+
+<script>
+    // Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAQkX9xz-H0hc1EHG-bJYAkaQIUMPxrk5I",
+      authDomain: "cbfu-ad11f.firebaseapp.com",
+      databaseURL: "https://cbfu-ad11f-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "cbfu-ad11f",
+      storageBucket: "cbfu-ad11f.firebasestorage.app",
+      messagingSenderId: "251609733997",
+      appId: "1:251609733997:web:af865a60d2b3ad6fe39864"
+    };
+    
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    // Global caches
+    let allDrivers = [], allConductors = [], allStaff = [];
+    let formHandlerAttached = false;
+
+    // ✅ Calculate Trip Status: UPCOMING | ONBOARDING | FINISHED
+    function getTripStatus(ticketDate, ticketTime) {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const [y, m, d] = ticketDate.split('-').map(Number);
+      const ticketDay = new Date(y, m - 1, d);
+      
+      let ticketDateTime = ticketDay;
+      if (ticketTime) {
+        const [h, min] = ticketTime.split(':').map(Number);
+        ticketDateTime = new Date(ticketDay);
+        ticketDateTime.setHours(h, min, 0, 0);
+      }
+      
+      if (ticketDay > today) return 'UPCOMING';
+      if (ticketDay < today) return 'FINISHED';
+      
+      if (ticketTime) {
+        const windowStart = new Date(ticketDateTime.getTime() - 30 * 60 * 1000);
+        const windowEnd = new Date(ticketDateTime.getTime() + 2 * 60 * 60 * 1000);
+        if (now >= windowStart && now <= windowEnd) return 'ONBOARDING';
+      }
+      return now < ticketDateTime ? 'UPCOMING' : 'FINISHED';
+    }
+
+    // Generate sequential bus number
+    async function getNextBusNumber() {
+      try {
+        const snap = await db.ref('buses').once('value');
+        let maxNum = 100;
+        snap.forEach(child => {
+          const bus = child.val();
+          if (bus?.number) {
+            const match = bus.number.toString().match(/(\d+)/);
+            if (match) {
+              const num = parseInt(match[1]);
+              if (num > maxNum) maxNum = num;
+            }
+          }
+        });
+        return 'Bus ' + (maxNum + 1);
+      } catch (e) {
+        console.warn('Error getting next bus number:', e);
+        return 'Bus ' + (100 + Math.floor(Math.random() * 900));
+      }
+    }
+
+    async function initializeBusNumberField() {
+      const nextNum = await getNextBusNumber();
+      document.getElementById('bNum').value = nextNum;
+    }
+
+    // Add New Bus
+    async function handleAddBus(e) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      
+      const submitBtn = document.querySelector('#addBus button[type="submit"]');
+      if (submitBtn.disabled) return;
+      
+      submitBtn.disabled = true;
+      const originalText = submitBtn.innerHTML;
+      submitBtn.innerHTML = '⏳ Adding...';
+      
+      try {
+        const route = document.getElementById('bRoute').value.trim();
+        const date = document.getElementById('bDate').value.trim();
+        const sched = document.getElementById('bSched').value.trim();
+        const driverUid = document.getElementById('bDriverSelect').value;
+        const driverName = document.getElementById('bDriverName').value.trim();
+        const condUid = document.getElementById('bConductorSelect').value;
+        const condName = document.getElementById('bConductorName').value.trim();
+        
+        if (!route || !date || !sched) throw new Error('⚠️ Route, Date & Schedule required!');
+        
+        const busNumber = await getNextBusNumber();
+        const newBus = {
+          number: busNumber, route, date, schedule: sched,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        
+        if (driverUid) {
+          newBus.driverUid = driverUid;
+          await db.ref('users/' + driverUid + '/busId').set(busNumber);
+        } else if (driverName) newBus.driver = driverName;
+        
+        if (condUid) {
+          newBus.conductorUid = condUid;
+          await db.ref('users/' + condUid + '/busId').set(busNumber);
+        } else if (condName) newBus.conductor = condName;
+        
+        await db.ref('buses').push(newBus);
+        
+        alert('✅ Bus added: ' + busNumber);
+        document.getElementById('addBus').reset();
+        await initializeBusNumberField();
+        loadBuses();
+        updateStats();
+      } catch (err) {
+        console.error('Add bus error:', err);
+        alert('❌ Error: ' + err.message);
+      } finally {
+        const btn = document.querySelector('#addBus button[type="submit"]');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
+
+    function attachFormHandler() {
+      if (formHandlerAttached) return;
+      const form = document.getElementById('addBus');
+      if (form) {
+        form.removeEventListener('submit', handleAddBus);
+        form.addEventListener('submit', handleAddBus);
+        formHandlerAttached = true;
+      }
+    }
+
+    // Auth & Role Check
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) { window.location.href = 'index.html'; return; }
+      
+      const snap = await db.ref('users/' + user.uid).once('value');
+      const userData = snap.val();
+      
+      if (userData?.role !== 'ADMIN') {
+        alert(`⚠️ Admin access required.`);
+        window.location.href = userData?.role === 'DRIVER' ? 'driver-dashboard.html' : 
+                               userData?.role === 'CONDUCTOR' ? 'conductor-dashboard.html' : 'student-home.html';
+        return;
+      }
+      
+      document.getElementById('adminName').textContent = `👋 ${userData.name || 'Admin'}`;
+      document.getElementById('btnLogout').onclick = () => auth.signOut().then(() => window.location.href = 'index.html');
+      
+      await initializeBusNumberField();
+      attachFormHandler();
+      
+      await Promise.all([loadStaffList(), loadBuses()]);
+      populateStaffDropdowns();
+      updateStats();
+    });
+
+    // Tab Switching
+    window.switchTab = (tab) => {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById(`tab-${tab}`).classList.add('active');
+      if (tab === 'staff') loadStaff();
+    };
+
+    async function loadStaffList() {
+      console.log('🔍 Loading staff from Firebase...');
+      try {
+        const snap = await db.ref('users').once('value');
+        allStaff = []; allDrivers = []; allConductors = [];
+        
+        snap.forEach(child => {
+          const u = { uid: child.key, ...child.val() };
+          const role = String(u.role || '').toUpperCase().trim();
+          
+          if (role === 'DRIVER') { allDrivers.push(u); allStaff.push(u); }
+          else if (role === 'CONDUCTOR') { allConductors.push(u); allStaff.push(u); }
+        });
+        
+        console.log('📊 Staff summary:', { total: allStaff.length, drivers: allDrivers.length, conductors: allConductors.length });
+        updateStats();
+        populateStaffDropdowns();
+      } catch (err) {
+        console.error('❌ Failed to load staff:', err);
+        alert('Error loading staff: ' + err.message);
+      }
+    }
+
+    async function updateStats() {
+      const [busesSnap, ticketsSnap] = await Promise.all([
+        db.ref('buses').once('value'),
+        db.ref('tickets').once('value')
+      ]);
+      document.getElementById('totalBuses').textContent = Object.keys(busesSnap.val() || {}).length;
+      document.getElementById('totalDrivers').textContent = allDrivers.length;
+      document.getElementById('totalConductors').textContent = allConductors.length;
+      let bookings = 0;
+      ticketsSnap.forEach(c => { if (c.val()?.status === 'CONFIRMED') bookings++; });
+      document.getElementById('totalBookings').textContent = bookings;
+    }
+
+    function populateStaffDropdowns() {
+      console.log('🎛️ Populating dropdowns...', { drivers: allDrivers.length, conductors: allConductors.length });
+      
+      const populate = (selectId, staffList, assignedBusNumber = null) => {
+        const sel = document.getElementById(selectId);
+        if (!sel) { console.warn(`⚠️ Dropdown not found: ${selectId}`); return; }
+        
+        const current = sel.value;
+        sel.innerHTML = '<option value="">-- Select --</option>';
+        
+        if (!staffList || staffList.length === 0) {
+          const roleType = selectId.includes('Driver') ? 'drivers' : 'conductors';
+          sel.innerHTML += `<option value="" disabled>⚠️ No ${roleType} found in database</option>`;
+          return;
+        }
+        
+        staffList.forEach(staff => {
+          const isAssignedElsewhere = staff.busId && staff.busId !== assignedBusNumber;
+          const disabledAttr = isAssignedElsewhere ? 'disabled' : '';
+          const suffix = isAssignedElsewhere ? ` (Assigned to ${staff.busId})` : '';
+          sel.innerHTML += `<option value="${staff.uid}" ${disabledAttr}>${staff.name || 'Unknown'} ${suffix}</option>`;
+        });
+        
+        if (current && staffList.some(s => s.uid === current)) sel.value = current;
+        console.log(`✅ Populated ${selectId}: ${staffList.length} options`);
+      };
+      
+      populate('bDriverSelect', allDrivers);
+      populate('bConductorSelect', allConductors);
+      populate('editDriverSelect', allDrivers);
+      populate('editCondSelect', allConductors);
+      
+      const assignBusNum = document.getElementById('assignBusNum')?.textContent;
+      populate('assignDriverSelect', allDrivers, assignBusNum);
+      populate('assignConductorSelect', allConductors, assignBusNum);
+    }
+
+    function loadBuses() {
+      const list = document.getElementById('busList');
+      db.ref('buses').orderByChild('date').on('value', async (snap) => {
+        list.innerHTML = '';
+        const buses = [];
+        snap.forEach(c => buses.push({ id: c.key, ...c.val() }));
+        if (buses.length === 0) {
+          list.innerHTML = '<p class="text-center text-muted py-4">No buses added yet.</p>';
+          document.getElementById('noBuses').classList.remove('hidden');
+          return;
+        }
+        document.getElementById('noBuses').classList.add('hidden');
+        for (const b of buses) {
+          const ts = await db.ref('tickets').orderByChild('busId').equalTo(b.id).once('value');
+          const booked = Object.values(ts.val() || {}).filter(t => t.status === 'CONFIRMED').length;
+          const avail = 20 - booked;
+          const full = avail <= 0;
+          const d = b.date ? new Date(b.date).toLocaleDateString('en-PH', { weekday:'short', month:'short', day:'numeric' }) : 'N/A';
+          const driverDisplay = await resolveStaffName(b.driverUid, b.driver, 'DRIVER');
+          const condDisplay = await resolveStaffName(b.conductorUid, b.conductor, 'CONDUCTOR');
+          list.innerHTML += `
+            <div class="admin-bus-card">
+              <div class="admin-bus-card-header">
+                <span class="admin-bus-number">🚌 ${b.number}</span>
+                <span style="font-size:0.75rem;padding:0.25rem 0.5rem;border-radius:20px;${full?'background:#f8d7da;color:#721c24;':'background:#d4edda;color:#155724;'}">
+                  ${full ? '● FULL' : '● ' + avail + ' left'}
+                </span>
+              </div>
+              <div class="admin-bus-detail"><span class="admin-bus-detail-label">📅 Date & Time:</span><span><strong>${d}</strong> • ${formatTime12(b.schedule)}</span></div>
+              <div class="admin-bus-detail"><span class="admin-bus-detail-label">💺 Seats:</span><span ${!full ? `onclick="viewSeatMap('${b.id}','${b.number}')"` : ''} style="cursor:${!full?'pointer':'not-allowed'};color:var(--primary);text-decoration:${!full?'underline':'none'};">${avail}/20 ${!full ? '🔍' : ''}</span></div>
+              <div class="admin-bus-detail"><span class="admin-bus-detail-label">🛣️ Route:</span><span>${b.route}</span></div>
+              <div class="admin-bus-crew"><span class="crew-badge driver">${driverDisplay}</span><span class="crew-badge conductor">${condDisplay}</span></div>
+              <div class="admin-bus-actions">
+                <button class="btn-action btn-tickets" onclick="viewTickets('${b.id}','${b.number}')">🎫 View (${booked})</button>
+                <button class="btn-action btn-warning" onclick="openAssign('${b.id}','${b.number}')">👥 Assign Staff</button>
+                <button class="btn-action btn-edit" onclick="openEdit('${b.id}')">✏️ Edit</button>
+                <button class="btn-action btn-delete" onclick="deleteBus('${b.id}')">🗑️ Delete</button>
+              </div>
+            </div>`;
+        }
+      });
+    }
+
+    async function resolveStaffName(uid, fallbackName, role) {
+      if (uid) {
+        try {
+          const snap = await db.ref('users/' + uid).once('value');
+          const u = snap.val();
+          if (u) return `${u.name || 'Unknown'} ${role === 'DRIVER' ? '👨‍✈️' : '🎫'}`;
+        } catch (e) { console.warn('Failed to load staff:', e); }
+      }
+      return fallbackName ? `${fallbackName} ${role === 'DRIVER' ? '👨‍✈️' : '🎫'}` : `<span class="crew-badge unassigned">Unassigned</span>`;
+    }
+
+    window.deleteBus = async (id) => {
+      if (!confirm('⚠️ Delete this bus?')) return;
+      try {
+        const bus = await db.ref('buses/' + id).once('value').then(s => s.val());
+        if (bus?.driverUid) await db.ref('users/' + bus.driverUid + '/busId').remove();
+        if (bus?.conductorUid) await db.ref('users/' + bus.conductorUid + '/busId').remove();
+        await db.ref('buses/' + id).remove();
+        await db.ref('tickets').orderByChild('busId').equalTo(id).once('value').then(s => { s.forEach(c => c.ref.remove()); });
+        alert('✅ Bus deleted');
+        loadBuses(); updateStats();
+      } catch (err) { alert('❌ ' + err.message); }
+    };
+
+    window.openEdit = async (id) => {
+      const b = await db.ref('buses/' + id).once('value').then(s => s.val());
+      if (!b) return;
+      document.getElementById('editBusId').value = id;
+      document.getElementById('editNum').value = b.number;
+      document.getElementById('editRoute').value = b.route;
+      document.getElementById('editDate').value = b.date;
+      document.getElementById('editSched').value = b.schedule;
+      populateStaffDropdowns();
+      if (b.driverUid) document.getElementById('editDriverSelect').value = b.driverUid;
+      else document.getElementById('editDriverName').value = b.driver || '';
+      if (b.conductorUid) document.getElementById('editCondSelect').value = b.conductorUid;
+      else document.getElementById('editCondName').value = b.conductor || '';
+      document.getElementById('editModal').style.display = 'flex';
+    };
+
+    document.getElementById('editBusForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('editBusId').value;
+      const updates = {
+        route: document.getElementById('editRoute').value.trim(),
+        date: document.getElementById('editDate').value.trim(),
+        schedule: document.getElementById('editSched').value.trim()
+      };
+      const driverUid = document.getElementById('editDriverSelect').value;
+      const driverName = document.getElementById('editDriverName').value.trim();
+      const oldBus = await db.ref('buses/' + id).once('value').then(s => s.val());
+      if (oldBus?.driverUid && driverUid !== oldBus.driverUid) await db.ref('users/' + oldBus.driverUid + '/busId').remove();
+      if (driverUid) { updates.driverUid = driverUid; updates.driver = null; await db.ref('users/' + driverUid + '/busId').set(oldBus.number); }
+      else if (driverName) { updates.driver = driverName; updates.driverUid = null; }
+      const condUid = document.getElementById('editCondSelect').value;
+      const condName = document.getElementById('editCondName').value.trim();
+      if (oldBus?.conductorUid && condUid !== oldBus.conductorUid) await db.ref('users/' + oldBus.conductorUid + '/busId').remove();
+      if (condUid) { updates.conductorUid = condUid; updates.conductor = null; await db.ref('users/' + condUid + '/busId').set(oldBus.number); }
+      else if (condName) { updates.conductor = condName; updates.conductorUid = null; }
+      await db.ref('buses/' + id).update(updates);
+      closeModal('editModal'); loadBuses(); alert('✅ Bus updated!');
+    };
+
+    window.openAssign = async (busId, busNum) => {
+      document.getElementById('assignBusId').value = busId;
+      document.getElementById('assignBusNum').textContent = busNum;
+      const bus = await db.ref('buses/' + busId).once('value').then(s => s.val());
+      
+      const populateAssign = (selectId, staffList, currentUid, currentName, currentBusNum) => {
+        const sel = document.getElementById(selectId);
+        if (!sel) return;
+        sel.innerHTML = '<option value="">-- Unassigned --</option>';
+        staffList.forEach(s => {
+          const isAssignedElsewhere = s.busId && s.busId !== currentBusNum;
+          const disabledAttr = isAssignedElsewhere ? 'disabled' : '';
+          const suffix = isAssignedElsewhere ? ` (Assigned to ${s.busId})` : '';
+          sel.innerHTML += `<option value="${s.uid}" ${disabledAttr}>${s.name || 'Unknown'} ${suffix}</option>`;
+        });
+        sel.value = currentUid || '';
+        const statusEl = document.getElementById(selectId.replace('Select', '') + 'Current');
+        if (statusEl) {
+          if (currentUid) {
+            const staff = staffList.find(x => x.uid === currentUid);
+            statusEl.textContent = `Currently: ${staff?.name || 'Unknown'}`;
+          } else if (currentName) {
+            statusEl.textContent = `Currently: ${currentName} (manual entry)`;
+          } else {
+            statusEl.textContent = 'Currently: Unassigned';
+          }
+        }
+      };
+      
+      populateAssign('assignDriverSelect', allDrivers, bus?.driverUid, bus?.driver, busNum);
+      populateAssign('assignConductorSelect', allConductors, bus?.conductorUid, bus?.conductor, busNum);
+      document.getElementById('assignModal').style.display = 'flex';
+    };
+
+    window.saveStaffAssignment = async () => {
+      const busId = document.getElementById('assignBusId').value;
+      const busNum = document.getElementById('assignBusNum').textContent;
+      const driverUid = document.getElementById('assignDriverSelect').value;
+      const condUid = document.getElementById('assignConductorSelect').value;
+      try {
+        const updates = {};
+        const bus = await db.ref('buses/' + busId).once('value').then(s => s.val());
+        if (bus?.driverUid && driverUid !== bus.driverUid) await db.ref('users/' + bus.driverUid + '/busId').remove();
+        if (driverUid) { updates.driverUid = driverUid; updates.driver = null; await db.ref('users/' + driverUid + '/busId').set(busNum); }
+        else { updates.driverUid = null; }
+        if (bus?.conductorUid && condUid !== bus.conductorUid) await db.ref('users/' + bus.conductorUid + '/busId').remove();
+        if (condUid) { updates.conductorUid = condUid; updates.conductor = null; await db.ref('users/' + condUid + '/busId').set(busNum); }
+        else { updates.conductorUid = null; }
+        await db.ref('buses/' + busId).update(updates);
+        closeModal('assignModal'); loadBuses(); alert('✅ Staff assignment updated!');
+      } catch (err) { alert('❌ Error: ' + err.message); }
+    };
+
+    // ✅ UPDATED: viewTickets with Trip Status Badges
+    window.viewTickets = (busId, busNum) => {
+      document.getElementById('ticketBusNum').textContent = busNum;
+      const list = document.getElementById('ticketsList');
+      list.innerHTML = '<p class="text-center text-muted">Loading...</p>';
+      
+      db.ref('tickets').orderByChild('busId').equalTo(busId).once('value').then(s => {
+        const ts = []; s.forEach(c => ts.push({ id: c.key, ...c.val() }));
+        const confirmed = ts.filter(t => t.status === 'CONFIRMED');
+        
+        if (confirmed.length === 0) {
+          list.innerHTML = '<p class="text-center text-muted py-4">No confirmed tickets yet.</p>';
+          document.getElementById('noTickets').style.display = 'block';
+        } else {
+          document.getElementById('noTickets').style.display = 'none';
+          list.innerHTML = '';
+          
+          const statusLabels = { UPCOMING: 'Upcoming', ONBOARDING: 'Boarding Now', FINISHED: 'Completed' };
+          
+          confirmed.sort((a,b) => (a.seat||99) - (b.seat||99)).forEach(t => {
+            const pickup = t.pickup === 'LOCATION' ? (t.pickupLocation || 'Dadaanan') : 'Terminal';
+            const tripStatus = getTripStatus(t.date, t.schedule);
+            
+            list.innerHTML += `
+              <div class="ticket-row">
+                <div>
+                  <strong>${t.studentName || 'Unknown'}</strong><br>
+                  <small class="text-muted">🆔 ${t.studentId || 'N/A'} • 🪑 #${t.seat} • 📍 ${pickup}</small><br>
+                  <span class="status-badge status-${tripStatus.toLowerCase()}" style="margin-top:4px;">
+                    ${statusLabels[tripStatus]}
+                  </span>
+                  ${t.boarded ? '<span class="status-badge status-BOARDED" style="margin-left:4px;">✓ Boarded</span>' : ''}
+                </div>
+                <div style="text-align:right;">
+                  <span class="status-badge status-${t.boarded ? 'BOARDED' : 'CONFIRMED'}">${t.boarded ? '✅ BOARDED' : '⏳ CONFIRMED'}</span><br>
+                  <small class="text-muted">₱${t.fare || 0}</small>
+                </div>
+              </div>`;
+          });
+        }
+        document.getElementById('ticketsModal').classList.add('active');
+      });
+    };
+
+    window.viewSeatMap = (busId, busNum) => {
+      document.getElementById('seatBusNum').textContent = busNum;
+      const grid = document.getElementById('seatGridAdmin');
+      grid.innerHTML = '<p class="text-center text-muted">Loading seats...</p>';
+      db.ref('tickets').orderByChild('busId').equalTo(busId).once('value').then(s => {
+        const seats = {}; s.forEach(c => { const t = c.val(); if (t.status === 'CONFIRMED' && t.seat) seats[t.seat] = t; });
+        grid.innerHTML = '';
+        for (let i = 1; i <= 20; i++) {
+          const d = document.createElement('div'); d.textContent = '#' + i;
+          if (seats[i]) { d.className = 'seat-item occupied'; if (seats[i].boarded) d.classList.add('boarded'); d.onclick = () => showSeatDetail(i, seats[i]); }
+          else { d.className = 'seat-item empty'; }
+          grid.appendChild(d);
+        }
+        document.getElementById('seatDetails').style.display = 'none';
+        document.getElementById('seatsModal').classList.add('active');
+      });
+    };
+
+    function showSeatDetail(seatNum, ticket) {
+      document.getElementById('selectedSeatNum').textContent = seatNum;
+      const pickup = ticket.pickup === 'LOCATION' ? (ticket.pickupLocation || 'Dadaanan') : 'Terminal';
+      const tripStatus = getTripStatus(ticket.date, ticket.schedule);
+      const statusLabels = { UPCOMING: 'Upcoming', ONBOARDING: 'Boarding Now', FINISHED: 'Completed' };
+      
+      document.getElementById('seatPassengerInfo').innerHTML = `
+        <strong>${ticket.studentName || 'Unknown'}</strong><br>
+        🆔 ${ticket.studentId || 'N/A'}<br>
+        📍 ${pickup}<br>
+        💳 ${ticket.paymentMethod || 'N/A'} • ₱${ticket.fare || 0}<br>
+        📊 Trip: <span class="status-badge status-${tripStatus.toLowerCase()}">${statusLabels[tripStatus]}</span><br>
+        🎫 Status: <strong>${ticket.boarded ? '✅ BOARDED' : '⏳ CONFIRMED'}</strong>
+      `;
+      document.getElementById('seatDetails').style.display = 'block';
+    }
+
+    window.loadStaff = () => { filterStaff('all'); };
+    window.filterStaff = (roleFilter) => {
+      document.querySelectorAll('#tab-staff .tab-btn').forEach(btn => btn.classList.remove('active'));
+      event?.target?.classList.add('active');
+      const tbody = document.getElementById('staffTableBody');
+      const filtered = roleFilter === 'all' ? allStaff : allStaff.filter(s => s.role === roleFilter);
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">No ${roleFilter === 'all' ? 'staff' : roleFilter.toLowerCase() + 's'} found.</td></tr>`;
+        document.getElementById('noStaff').classList.remove('hidden'); return;
+      }
+      document.getElementById('noStaff').classList.add('hidden'); tbody.innerHTML = '';
+      filtered.forEach(staff => {
+        const busBadge = staff.busId ? `<span class="status-badge status-CONFIRMED" style="font-size:0.7rem;">${staff.busId}</span>` : '<span class="text-muted" style="font-size:0.85rem;">Not assigned</span>';
+        tbody.innerHTML += `<tr><td><strong>${staff.name || 'Unknown'}</strong></td><td class="text-muted">${staff.email || 'N/A'}</td><td><span class="role-tag ${staff.role.toLowerCase()}">${staff.role}</span></td><td>${busBadge}</td><td>${staff.busId ? `<button class="btn btn-sm btn-warning" onclick="viewBus('${staff.busId}')">🚌 View Bus</button>` : '<span class="text-muted" style="font-size:0.8rem;">—</span>'}</td></tr>`;
+      });
+    };
+
+    window.viewBus = (busNum) => {
+      db.ref('buses').orderByChild('number').equalTo(busNum).once('value').then(s => {
+        s.forEach(c => { switchTab('buses'); setTimeout(() => { const card = Array.from(document.querySelectorAll('.admin-bus-card')).find(el => el.querySelector('.admin-bus-number')?.textContent.includes(busNum)); if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100); });
+      });
+    };
+
+    function formatTime12(timeStr) {
+      if (!timeStr) return 'N/A';
+      const [h, m] = timeStr.split(':'); const hr = parseInt(h), mn = parseInt(m); const ap = hr >= 12 ? 'PM' : 'AM';
+      return `${String(hr % 12 || 12).padStart(2, '0')}:${String(mn).padStart(2, '0')} ${ap}`;
+    }
+
+    window.closeModal = (id) => { document.getElementById(id).classList.remove('active'); };
+    window.onclick = (e) => { if (e.target.classList.contains('modal')) e.target.classList.remove('active'); };
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
+    });
+  </script>
+</body>
+</html>

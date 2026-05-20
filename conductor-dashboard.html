@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conductor Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+    :root { --primary:#04383f; --success:#28a745; --warning:#ffc107; --danger:#dc3545; --bg:#f8f9fa; --card:#fff; --border:#dee2e6; --muted:#6c757d; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: #212529; line-height: 1.5; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+    .card { background: var(--card); border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 1rem; }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+    .btn { padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-warning { background: var(--warning); color: #212529; }
+    .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    .text-center { text-align: center; }
+    .text-muted { color: var(--muted); }
+    .hidden { display: none !important; }
+    
+    /* Bus Info Card */
+    .bus-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem; }
+    .info-item { background: #f8f9fa; padding: 0.75rem; border-radius: 8px; border-left: 4px solid var(--primary); }
+    .info-label { font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+    .info-value { font-weight: 600; color: #212529; margin-top: 0.25rem; }
+    
+    /* Passenger List */
+    .passenger-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .passenger-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 1rem; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s; }
+    .passenger-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: #cbd5e1; }
+    .passenger-card.onboarding { border: 2px solid #fbbf24; background: #fffbeb; }
+    .passenger-info h4 { margin: 0 0 0.25rem 0; color: var(--primary); }
+    .passenger-info p { margin: 0.15rem 0; font-size: 0.9rem; color: #495057; }
+    .passenger-actions { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end; }
+    .seat-badge { display: inline-block; padding: 0.25rem 0.75rem; background: var(--primary); color: white; border-radius: 20px; font-weight: 600; font-size: 0.9rem; }
+    
+    /* ✅ Trip Status Badges */
+    .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+    .status-upcoming { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+    .status-upcoming::before { content: "📅"; }
+    .status-onboarding { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; animation: pulse 2s infinite; }
+    .status-onboarding::before { content: "🚌"; }
+    .status-finished { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+    .status-finished::before { content: "✅"; }
+    .status-boarded { background: #06b6d4; color: white; }
+    .status-boarded::before { content: "✓"; }
+    @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(251, 191, 36, 0); } }
+    
+    /* Stats Bar */
+    .stats-bar { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .stat-card { flex: 1; min-width: 120px; background: linear-gradient(135deg, var(--primary), #065f5f); color: white; padding: 1rem; border-radius: 10px; text-align: center; }
+    .stat-number { font-size: 1.8rem; font-weight: 700; display: block; }
+    .stat-label { font-size: 0.85rem; opacity: 0.9; }
+    .stat-card.warning { background: linear-gradient(135deg, #fef3c7, #fbbf24); color: #92400e; }
+    .stat-card.success { background: linear-gradient(135deg, #28a745, #20c997); }
+    .stat-card.info { background: linear-gradient(135deg, #dbeafe, #60a5fa); color: #1e40af; }
+    
+    /* Empty State */
+    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--muted); }
+    .empty-state .icon { font-size: 3rem; margin-bottom: 1rem; display: block; }
+    
+    /* Search/Filter */
+    .search-box { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .search-box input { flex: 1; padding: 0.6rem 1rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
+    .search-box input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(4,56,63,0.1); }
+    
+    /* Modal */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+    .modal.active { display: flex; }
+    .modal-content { background: white; padding: 1.5rem; border-radius: 12px; width: 90%; max-width: 450px; max-height: 85vh; overflow-y: auto; animation: slideUp 0.3s ease; }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: white; z-index: 1; }
+    .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .close-btn:hover { background: #f1f5f9; color: #1e293b; }
+    .modal-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+    
+    /* Toast Notification */
+    .toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 2000; animation: slideIn 0.3s ease; display: none; }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+    .toast.info { background: var(--primary); }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    
+    @media (max-width: 768px) {
+      .passenger-card { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+      .passenger-actions { width: 100%; flex-direction: row; justify-content: space-between; }
+      .modal-content { width: 95%; margin: 1rem; }
+      .stats-bar { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="flex-between mb-4">
+      <div>
+        <h1 style="color:var(--primary); margin:0;">🎫 Conductor Dashboard</h1>
+        <p class="text-muted" id="conductorName">Loading...</p>
+      </div>
+      <button id="btnLogout" class="btn btn-danger">Logout</button>
+    </div>
+
+    <!-- Bus Assignment Card -->
+    <div class="card" id="busCard">
+      <h3 style="color:var(--primary); margin-bottom:0.5rem;">📋 Today's Assignment</h3>
+      <p class="text-muted" id="assignmentStatus">Checking assignment...</p>
+      <div id="busDetails" class="hidden">
+        <div class="bus-info-grid">
+          <div class="info-item">
+            <div class="info-label">🚌 Bus Number</div>
+            <div class="info-value" id="busNumber">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">🛣️ Route</div>
+            <div class="info-value" id="busRoute">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">📅 Date & Time</div>
+            <div class="info-value" id="busSchedule">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">👨‍✈️ Driver</div>
+            <div class="info-value" id="busDriver">-</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-bar" id="statsBar" style="display:none;">
+      <div class="stat-card">
+        <span class="stat-number" id="totalPassengers">0</span>
+        <span class="stat-label">Total Booked</span>
+      </div>
+      <div class="stat-card success">
+        <span class="stat-number" id="boardedCount">0</span>
+        <span class="stat-label">✅ Verified</span>
+      </div>
+      <div class="stat-card warning">
+        <span class="stat-number" id="pendingCount">0</span>
+        <span class="stat-label">⏳ Pending</span>
+      </div>
+      <div class="stat-card info">
+        <span class="stat-number" id="onboardingCount">0</span>
+        <span class="stat-label">🚌 Boarding Now</span>
+      </div>
+    </div>
+
+    <!-- Search & Passenger List -->
+    <div class="card">
+      <div class="flex-between mb-4">
+        <h3 style="color:var(--primary); margin:0;">🎫 Passenger Manifest</h3>
+        <button class="btn btn-primary" onclick="refreshList()">🔄 Refresh</button>
+      </div>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="🔍 Search by name or student ID..." onkeyup="filterPassengers()">
+      </div>
+      <div id="passengerList" class="passenger-list">
+        <div class="empty-state">
+          <span class="icon">🔍</span>
+          <p>Loading passengers...</p>
+        </div>
+      </div>
+      <p id="noPassengers" class="text-center text-muted hidden" style="padding:2rem;">
+        No passengers booked for this bus yet.
+      </p>
+    </div>
+  </div>
+
+  <!-- Passenger Detail Modal -->
+  <div id="passengerModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4 style="margin:0; color:var(--primary);">🎫 Passenger Details</h4>
+        <button class="close-btn" onclick="closeModal('passengerModal')">&times;</button>
+      </div>
+      <div id="passengerModalBody"></div>
+      <div class="modal-actions" id="modalActions"></div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
+  <script>
+    // Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAQkX9xz-H0hc1EHG-bJYAkaQIUMPxrk5I",
+      authDomain: "cbfu-ad11f.firebaseapp.com",
+      databaseURL: "https://cbfu-ad11f-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "cbfu-ad11f",
+      storageBucket: "cbfu-ad11f.firebasestorage.app",
+      messagingSenderId: "251609733997",
+      appId: "1:251609733997:web:af865a60d2b3ad6fe39864"
+    };
+    
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    let currentUser = null;
+    let assignedBusId = null; // Will store BUS UID after lookup
+    let assignedBusNumber = null; // Stores bus number (e.g., "Bus 101")
+    let currentUserRole = null;
+    let allPassengers = [];
+
+    // ✅ Calculate Trip Status: UPCOMING | ONBOARDING | FINISHED
+    function getTripStatus(ticketDate, ticketTime) {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const [y, m, d] = ticketDate.split('-').map(Number);
+      const ticketDay = new Date(y, m - 1, d);
+      
+      let ticketDateTime = ticketDay;
+      if (ticketTime) {
+        const [h, min] = ticketTime.split(':').map(Number);
+        ticketDateTime = new Date(ticketDay);
+        ticketDateTime.setHours(h, min, 0, 0);
+      }
+      
+      if (ticketDay > today) return 'UPCOMING';
+      if (ticketDay < today) return 'FINISHED';
+      
+      if (ticketTime) {
+        const windowStart = new Date(ticketDateTime.getTime() - 30 * 60 * 1000);
+        const windowEnd = new Date(ticketDateTime.getTime() + 2 * 60 * 60 * 1000);
+        if (now >= windowStart && now <= windowEnd) return 'ONBOARDING';
+      }
+      return now < ticketDateTime ? 'UPCOMING' : 'FINISHED';
+    }
+
+    // Auth & Role Check
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) { window.location.href = 'index.html'; return; }
+      
+      currentUser = user;
+      const snap = await db.ref('users/' + user.uid).once('value');
+      const userData = snap.val();
+      
+      if (!userData || (userData.role !== 'CONDUCTOR' && userData.role !== 'ADMIN' && userData.role !== 'DRIVER')) {
+        alert('⚠️ Access denied. Authorized role required.');
+        await auth.signOut();
+        window.location.href = 'index.html';
+        return;
+      }
+      
+      currentUserRole = userData.role;
+      document.getElementById('conductorName').textContent = `👋 ${userData.name || 'Staff'} (${userData.role})`;
+      document.getElementById('btnLogout').onclick = () => auth.signOut().then(() => window.location.href = 'index.html');
+      
+      await loadAssignedBus(userData);
+    });
+
+    // Load assigned bus - FIXED: Query by bus number field
+    async function loadAssignedBus(userData) {
+      const busNumber = userData.busId;
+      
+      if (!busNumber) {
+        document.getElementById('assignmentStatus').innerHTML = '⚠️ <strong>No bus assigned.</strong><br>Contact admin.';
+        document.getElementById('passengerList').innerHTML = '<div class="empty-state"><span class="icon">🚌</span><p>Waiting for assignment...</p></div>';
+        return;
+      }
+      
+      assignedBusNumber = busNumber;
+      
+      try {
+        // ✅ FIXED: Query buses by the "number" field, not by key
+        const busSnap = await db.ref('buses').orderByChild('number').equalTo(busNumber).once('value');
+        let bus = null;
+        let busUid = null;
+        
+        busSnap.forEach(child => {
+          bus = child.val();
+          busUid = child.key;
+        });
+        
+        if (!bus) {
+          document.getElementById('assignmentStatus').textContent = '❌ Bus "' + busNumber + '" not found.';
+          return;
+        }
+        
+        // ✅ Store the actual bus UID for ticket queries
+        assignedBusId = busUid;
+        
+        document.getElementById('assignmentStatus').classList.add('hidden');
+        document.getElementById('busDetails').classList.remove('hidden');
+        document.getElementById('statsBar').style.display = 'flex';
+        
+        document.getElementById('busNumber').textContent = bus.number || 'N/A';
+        document.getElementById('busRoute').textContent = bus.route || 'N/A';
+        document.getElementById('busSchedule').textContent = 
+          `${bus.date ? new Date(bus.date).toLocaleDateString('en-PH', {weekday:'short', month:'short', day:'numeric'}) : 'N/A'} • ${formatTime12(bus.schedule)}`;
+        document.getElementById('busDriver').textContent = bus.driver || 'TBA';
+        
+        // 🎫 Load passengers using the ACTUAL bus UID
+        loadPassengers(assignedBusId);
+      } catch (err) {
+        console.error('❌ Error loading bus:', err);
+        document.getElementById('assignmentStatus').textContent = '❌ Error loading bus.';
+      }
+    }
+
+    // Load passengers with trip status - Uses bus UID
+    function loadPassengers(busUid) {
+      const list = document.getElementById('passengerList');
+      const noPassengers = document.getElementById('noPassengers');
+      
+      // ✅ Query tickets by the actual bus UID
+      db.ref('tickets').orderByChild('busId').equalTo(busUid).on('value', (snapshot) => {
+        list.innerHTML = '';
+        allPassengers = [];
+        
+        snapshot.forEach(child => {
+          const t = child.val();
+          if (t.status === 'CONFIRMED') {
+            allPassengers.push({ id: child.key, ...t });
+          }
+        });
+        
+        if (allPassengers.length === 0) {
+          noPassengers.classList.remove('hidden');
+          updateStats(0, 0, 0, 0);
+          return;
+        }
+        noPassengers.classList.add('hidden');
+        
+        allPassengers.sort((a, b) => (a.seat || 99) - (b.seat || 99));
+        renderPassengerList(allPassengers);
+      });
+    }
+
+    // Render passenger list with status badges and actions
+    function renderPassengerList(passengers) {
+      const list = document.getElementById('passengerList');
+      list.innerHTML = '';
+      
+      let boarded = 0, pending = 0, onboarding = 0;
+      const statusLabels = { UPCOMING: 'Upcoming', ONBOARDING: 'Boarding Now', FINISHED: 'Completed' };
+      
+      passengers.forEach(ticket => {
+        const isBoarded = ticket.boarded === true;
+        const tripStatus = getTripStatus(ticket.date, ticket.schedule);
+        
+        if (isBoarded) boarded++;
+        else if (tripStatus === 'ONBOARDING') onboarding++;
+        else pending++;
+        
+        const pickupDisplay = ticket.pickup === 'LOCATION' ? (ticket.pickupLocation || 'Dadaanan') : 'Main Terminal';
+        const cardClass = tripStatus === 'ONBOARDING' && !isBoarded ? 'passenger-card onboarding' : 'passenger-card';
+        
+        list.innerHTML += `
+          <div class="${cardClass}" data-name="${(ticket.studentName||'').toLowerCase()}" data-id="${ticket.studentId||''}">
+            <div class="passenger-info">
+              <h4>🎓 ${ticket.studentName || 'Unknown'}</h4>
+              <p>🆔 ${ticket.studentId || 'N/A'}</p>
+              <p>📍 ${pickupDisplay} • 🪑 #${ticket.seat || '?'}</p>
+              <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem;">
+                <span class="status-badge status-${tripStatus.toLowerCase()}">${statusLabels[tripStatus]}</span>
+                ${isBoarded ? '<span class="status-badge status-boarded">✓ Boarded</span>' : ''}
+              </div>
+            </div>
+            <div class="passenger-actions">
+              <p style="font-weight:600; color:var(--primary); margin:0;">₱${ticket.fare || 0}</p>
+              <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                <button class="btn btn-primary btn-sm" onclick="showPassengerDetail('${ticket.id}')">👁️ View</button>
+                ${!isBoarded && currentUserRole !== 'ADMIN' ? `<button class="btn btn-success btn-sm" onclick="verifyPassenger('${ticket.id}', '${ticket.studentName}')">✓ Verify</button>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      
+      updateStats(passengers.length, boarded, pending, onboarding);
+    }
+
+    // ✅ Verify/Board a passenger - ONLY conductors/drivers
+    window.verifyPassenger = (ticketId, studentName) => {
+      if (currentUserRole === 'ADMIN') {
+        showToast('⚠️ Admins cannot verify boarding. Use conductor/driver account.', 'error');
+        return;
+      }
+      
+      if (!confirm(`✅ Verify ${studentName} is boarding?\n\nConductor must check:\n• Student ID matches ticket\n• Payment proof (if GCash)\n• Correct seat number\n\nProceed?`)) {
+        return;
+      }
+      
+      const updates = {
+        boarded: true,
+        boardedAt: firebase.database.ServerValue.TIMESTAMP,
+        verifiedBy: currentUser.uid,
+        verifiedByName: auth.currentUser?.email?.split('@')[0] || 'Staff'
+      };
+      
+      db.ref('tickets/' + ticketId).update(updates)
+        .then(() => {
+          showToast(`✅ ${studentName} verified & boarded!`, 'success');
+        })
+        .catch(err => {
+          showToast('❌ Failed: ' + err.message, 'error');
+          console.error(err);
+        });
+    };
+
+    // 👁️ Show passenger detail modal
+    window.showPassengerDetail = (ticketId) => {
+      db.ref('tickets/' + ticketId).once('value').then(snap => {
+        const t = snap.val();
+        if (!t) return;
+        
+        const pickupDisplay = t.pickup === 'LOCATION' ? (t.pickupLocation || 'Dadaanan') : 'Main Terminal';
+        const tripStatus = getTripStatus(t.date, t.schedule);
+        const statusLabels = { UPCOMING: 'Upcoming', ONBOARDING: 'Boarding Now', FINISHED: 'Completed' };
+        const isBoarded = t.boarded === true;
+        
+        document.getElementById('passengerModalBody').innerHTML = `
+          <div style="line-height:1.8;">
+            <p><strong>🎓 Student:</strong> ${t.studentName || 'N/A'}</p>
+            <p><strong>🆔 ID Number:</strong> ${t.studentId || 'N/A'}</p>
+            <p><strong>🪑 Seat:</strong> #${t.seat || 'N/A'}</p>
+            <p><strong>📍 Pickup:</strong> ${pickupDisplay}</p>
+            <p><strong>🛣️ Route:</strong> ${t.from || '-'} → ${t.to || '-'}</p>
+            <p><strong>📅 Date:</strong> ${t.date ? new Date(t.date).toLocaleDateString('en-PH') : 'N/A'}</p>
+            <p><strong>⏰ Time:</strong> ${t.schedule ? formatTime12(t.schedule) : 'N/A'}</p>
+            <p><strong>💰 Fare:</strong> ₱${t.fare || 0}</p>
+            <p><strong>💳 Payment:</strong> ${t.paymentMethod || 'N/A'}</p>
+            <p><strong>📊 Trip Status:</strong> <span class="status-badge status-${tripStatus.toLowerCase()}" style="margin-left:0.5rem;">${statusLabels[tripStatus]}</span></p>
+            <p><strong>🎫 Boarding:</strong> <span class="status-badge ${isBoarded ? 'status-boarded' : 'status-upcoming'}" style="margin-left:0.5rem;">${isBoarded ? '✓ Boarded' : '⏳ Not Boarded'}</span></p>
+            ${isBoarded && t.boardedAt ? `<p style="color:#28a745; font-size:0.85rem;"><strong>✓ Verified:</strong> ${new Date(t.boardedAt).toLocaleString()} by ${t.verifiedByName || 'Staff'}</p>` : ''}
+          </div>
+        `;
+        
+        const actionsDiv = document.getElementById('modalActions');
+        if (!isBoarded && currentUserRole !== 'ADMIN') {
+          actionsDiv.innerHTML = `
+            <button class="btn btn-success" style="flex:1;" onclick="verifyPassenger('${ticketId}', '${t.studentName}'); closeModal('passengerModal');">
+              ✓ Confirm Boarding
+            </button>
+            <button class="btn btn-secondary" style="flex:1;" onclick="closeModal('passengerModal')">Close</button>
+          `;
+        } else {
+          actionsDiv.innerHTML = `<button class="btn btn-secondary" style="width:100%;" onclick="closeModal('passengerModal')">Close</button>`;
+        }
+        
+        document.getElementById('passengerModal').classList.add('active');
+      }).catch(err => {
+        console.error('Error loading ticket:', err);
+        showToast('❌ Failed to load details', 'error');
+      });
+    };
+
+    // 🔍 Filter passengers by search
+    window.filterPassengers = () => {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      if (!query) {
+        renderPassengerList(allPassengers);
+        return;
+      }
+      const filtered = allPassengers.filter(p => 
+        (p.studentName || '').toLowerCase().includes(query) || 
+        (p.studentId || '').toLowerCase().includes(query) ||
+        (p.seat || '').toString().includes(query)
+      );
+      renderPassengerList(filtered);
+    };
+
+    // 🔁 Refresh passenger list
+    window.refreshList = () => {
+      if (assignedBusId) loadPassengers(assignedBusId);
+      document.getElementById('searchInput').value = '';
+      showToast('🔄 List refreshed', 'info');
+    };
+
+    // 📊 Update stats display
+    function updateStats(total, boarded, pending, onboarding) {
+      document.getElementById('totalPassengers').textContent = total;
+      document.getElementById('boardedCount').textContent = boarded;
+      document.getElementById('pendingCount').textContent = pending;
+      document.getElementById('onboardingCount').textContent = onboarding;
+    }
+
+    // 🍞 Show toast notification
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = `toast ${type}`;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3000);
+    }
+
+    // 🕐 Format time helper
+    function formatTime12(timeStr) {
+      if (!timeStr) return 'N/A';
+      const [h, m] = timeStr.split(':');
+      const hr = parseInt(h), mn = parseInt(m);
+      const ap = hr >= 12 ? 'PM' : 'AM';
+      return `${String(hr % 12 || 12).padStart(2, '0')}:${String(mn).padStart(2, '0')} ${ap}`;
+    }
+
+    // ❌ Close modal
+    window.closeModal = (id) => { document.getElementById(id).classList.remove('active'); };
+    window.onclick = (e) => { if (e.target.classList.contains('modal')) e.target.classList.remove('active'); };
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
+    });
+  </script>
+</body>
+</html>

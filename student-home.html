@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Home</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+    .ticket-list { display: flex; flex-direction: column; gap: 16px; padding: 1rem 0; }
+    .ticket-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden; transition: all 0.2s ease; cursor: pointer; }
+    .ticket-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); border-color: #cbd5e1; }
+    .ticket-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: #f8fafc; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; gap: 8px; }
+    .ticket-body { padding: 16px 20px; background: white; border-bottom: 1px solid #f1f5f9; }
+    .ticket-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.9rem; color: #475569; }
+    .ticket-row strong { color: #1e293b; font-weight: 600; }
+    .ticket-status { padding: 4px 12px; border-radius: 20px; color: white; font-size: 0.8rem; font-weight: 500; text-transform: uppercase; }
+    .quick-actions { display: flex; gap: 8px; margin-left: 12px; }
+    .expand-hint { font-size: 0.75rem; color: #94a3b8; margin-left: 8px; }
+    .text-muted { color: #64748b; }
+    .text-sm { font-size: 0.875rem; }
+    .text-center { text-align: center; }
+    .hidden { display: none !important; }
+    
+    /* ✅ Trip Status Badges */
+    .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+    .status-upcoming { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+    .status-upcoming::before { content: "📅"; font-size: 0.9rem; }
+    .status-onboarding { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; animation: pulse 2s infinite; }
+    .status-onboarding::before { content: "🚌"; font-size: 0.9rem; }
+    .status-finished { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+    .status-finished::before { content: "✅"; font-size: 0.9rem; }
+    @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(251, 191, 36, 0); } }
+    
+    .datetime-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; background: #e0f2fe; color: #0369a1; border-radius: 20px; font-size: 0.8rem; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="flex-between mb-4">
+      <div>
+        <h1 id="greeting" style="color:var(--primary); margin:0;">Hi 👋</h1>
+        <p id="userEmail" class="text-muted text-sm">loading...</p>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button onclick="location.href='book-ticket.html'" class="btn btn-primary">+ Book New</button>
+        <button id="btnLogout" class="btn btn-danger">Logout</button>
+      </div>
+    </div>
+    <div id="ticketStats" class="mb-4" style="padding: 12px; background: #f0f9ff; border-radius: 8px; text-align: center; display: none;">
+      <strong id="ticketCount" style="color: var(--primary);">📋 Loading tickets...</strong>
+    </div>
+    <div id="ticketList" class="ticket-list" style="min-height: 100px; padding: 0;"></div>
+    <p id="emptyMsg" class="text-muted text-center mt-4" style="display: none;">No tickets yet. Book your first ride!</p>
+  </div>
+
+  <script>
+    // Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAQkX9xz-H0hc1EHG-bJYAkaQIUMPxrk5I",
+      authDomain: "cbfu-ad11f.firebaseapp.com",
+      databaseURL: "https://cbfu-ad11f-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "cbfu-ad11f",
+      storageBucket: "cbfu-ad11f.firebasestorage.app",
+      messagingSenderId: "251609733997",
+      appId: "1:251609733997:web:af865a60d2b3ad6fe39864"
+    };
+    
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    // Auth Guard
+    auth.onAuthStateChanged((user) => {
+      if (!user) { window.location.href = 'index.html'; return; }
+      document.getElementById('greeting').textContent = 'Hi, ' + (user.email?.split('@')[0] || 'Student') + ' 👋';
+      document.getElementById('userEmail').textContent = user.email;
+      document.getElementById('btnLogout').onclick = () => auth.signOut().then(() => window.location.href = 'index.html');
+
+      // Real-Time Ticket Listener
+      db.ref('tickets').orderByChild('userId').equalTo(user.uid).on('value', (snapshot) => {
+        const tickets = [];
+        snapshot.forEach(child => {
+          const t = child.val();
+          if (t.status === 'CONFIRMED' || t.status === 'CANCELLED') {
+            tickets.push({ id: child.key, ...t });
+          }
+        });
+        tickets.sort((a, b) => {
+          const dateA = a.date ? new Date(a.date).getTime() : 0;
+          const dateB = b.date ? new Date(b.date).getTime() : 0;
+          if (dateB !== dateA) return dateB - dateA;
+          return (b.createdAt || 0) - (a.createdAt || 0);
+        });
+        renderTickets(tickets);
+      });
+    });
+
+    // ✅ Calculate Trip Status: UPCOMING | ONBOARDING | FINISHED
+    function getTripStatus(ticketDate, ticketTime) {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const [y, m, d] = ticketDate.split('-').map(Number);
+      const ticketDay = new Date(y, m - 1, d);
+      
+      let ticketDateTime = ticketDay;
+      if (ticketTime) {
+        const [h, min] = ticketTime.split(':').map(Number);
+        ticketDateTime = new Date(ticketDay);
+        ticketDateTime.setHours(h, min, 0, 0);
+      }
+      
+      if (ticketDay > today) return 'UPCOMING';
+      if (ticketDay < today) return 'FINISHED';
+      
+      if (ticketTime) {
+        const windowStart = new Date(ticketDateTime.getTime() - 30 * 60 * 1000);
+        const windowEnd = new Date(ticketDateTime.getTime() + 2 * 60 * 60 * 1000);
+        if (now >= windowStart && now <= windowEnd) return 'ONBOARDING';
+      }
+      return now < ticketDateTime ? 'UPCOMING' : 'FINISHED';
+    }
+
+    function formatTime12(timeStr) {
+      if (!timeStr) return 'N/A';
+      const [h, m] = timeStr.split(':');
+      const hours = parseInt(h), mins = parseInt(m);
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const display = hours % 12 || 12;
+      return `${String(display).padStart(2, '0')}:${String(mins).padStart(2, '0')} ${ampm}`;
+    }
+
+    function formatDatePH(dateStr) {
+      if (!dateStr) return 'N/A';
+      return new Date(dateStr).toLocaleDateString('en-PH', { 
+        weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' 
+      });
+    }
+
+    function renderTickets(tickets) {
+      const list = document.getElementById('ticketList');
+      const empty = document.getElementById('emptyMsg');
+      const stats = document.getElementById('ticketStats');
+      const ticketCountDisplay = document.getElementById('ticketCount');
+      
+      list.innerHTML = '';
+      
+      if (tickets.length === 0) { 
+        empty.style.display = 'block'; 
+        list.style.display = 'none'; 
+        stats.style.display = 'none'; 
+        return; 
+      }
+      
+      empty.style.display = 'none'; 
+      list.style.display = 'flex'; 
+      stats.style.display = 'block';
+      ticketCountDisplay.textContent = `📋 You have ${tickets.length} ticket${tickets.length !== 1 ? 's' : ''}`;
+
+      tickets.forEach(t => {
+        const busLabel = t.busName || `Bus ${t.busId?.slice(-4) || 'N/A'}`;
+        const dateDisplay = formatDatePH(t.date);
+        const timeDisplay = t.schedule ? formatTime12(t.schedule) : 'N/A';
+        const tripStatus = getTripStatus(t.date, t.schedule);
+        const statusClass = `status-${tripStatus.toLowerCase()}`;
+        const statusLabels = { UPCOMING: 'Upcoming', ONBOARDING: 'Boarding Now', FINISHED: 'Completed' };
+        const ticketId = 'ticket-' + t.id;
+        
+        const card = document.createElement('div');
+        card.className = 'ticket-card';
+        card.innerHTML = `
+          <div class="ticket-header">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <div>
+                <strong>${busLabel}</strong>
+                <div style="font-size:0.85rem; color:#64748b; margin-top:2px;">
+                  📅 ${dateDisplay} • ⏰ ${timeDisplay}
+                </div>
+              </div>
+              <span class="expand-hint">▼ Tap to expand</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span class="status-badge ${statusClass}">${statusLabels[tripStatus]}</span>
+            </div>
+          </div>
+          <div class="ticket-body" id="details-${ticketId}" style="display:none;">
+            <div class="ticket-row"><span>Ticket ID</span><strong>${t.id}</strong></div>
+            <div class="ticket-row"><span>Name</span><strong>${t.studentName || '-'}</strong></div>
+            <div class="ticket-row"><span>Seat</span><strong>#${t.seat || 'N/A'}</strong></div>
+            <div class="ticket-row"><span>Route</span><strong>${t.route || '-'}</strong></div>
+            <div class="ticket-row"><span>From → To</span><strong>${t.from || '-'} → ${t.to || '-'}</strong></div>
+            <div class="ticket-row"><span>📅 Date</span><strong>${dateDisplay}</strong></div>
+            <div class="ticket-row"><span>⏰ Time</span><strong>${timeDisplay}</strong></div>
+            <div class="ticket-row"><span>Pickup</span><strong>${t.pickup === 'LOCATION' ? (t.pickupLocation || 'Dadaanan') : 'Terminal'}</strong></div>
+            <div class="ticket-row"><span>Fare</span><strong>₱${t.fare || 0}</strong></div>
+            <div class="ticket-row"><span>Trip Status</span><strong class="status-badge ${statusClass}">${statusLabels[tripStatus]}</strong></div>
+          </div>`;
+        
+        card.querySelector('.ticket-header').onclick = (e) => {
+          if(e.target.closest('button')) return;
+          const d = document.getElementById(`details-${ticketId}`);
+          const show = d.style.display === 'none';
+          d.style.display = show ? 'block' : 'none';
+        };
+        
+        list.appendChild(card);
+      });
+    }
+  </script>
+</body>
+</html>

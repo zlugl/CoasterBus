@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Bus Ticketing</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    #loadingScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--primary); color: white; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s ease; }
+    .loader { font-size: 4rem; animation: bounce 1s infinite; }
+    @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-20px)} }
+    #authContainer { display: none; min-height: 100vh; background: var(--bg); justify-content: center; align-items: center; padding: 1rem; }
+    
+    /* 🔥 Google Button Styles */
+    .divider { display: flex; align-items: center; text-align: center; margin: 1.5rem 0; color: var(--muted); font-size: 0.9rem; }
+    .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--border); }
+    .divider::before { margin-right: 0.75rem; }
+    .divider::after { margin-left: 0.75rem; }
+    
+    .google-btn {
+      width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 10px 16px; background: white; color: #333; border: 1px solid #ddd;
+      border-radius: 8px; font-weight: 500; cursor: pointer; transition: all 0.2s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .google-btn:hover { background: #f8f9fa; border-color: #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.15); }
+    .google-btn:active { transform: scale(0.98); }
+    .google-icon {
+      width: 20px; height: 20px;
+      background: url('https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg') no-repeat center;
+      background-size: contain;
+    }
+    
+    /* Role badge styles */
+    .role-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 12px;
+      font-size: 0.75rem; font-weight: 600; margin-left: 8px;
+    }
+    .role-student { background: #e3f2fd; color: #1976d2; }
+    .role-driver { background: #fff3e0; color: #ef6c00; }
+    .role-conductor { background: #e8f5e9; color: #388e3c; }
+    .role-admin { background: #fce4ec; color: #c2185b; }
+    
+    /* Form enhancements */
+    .note-box {
+      background: #e7f3ff; border-left: 4px solid #2196f3;
+      padding: 0.75rem 1rem; border-radius: 0 8px 8px 0;
+      font-size: 0.85rem; color: #0d47a1; margin-bottom: 1rem;
+    }
+    .key-hint {
+      display: block; margin-top: 0.5rem; font-size: 0.8rem;
+      color: var(--muted); background: #fff3e0;
+      padding: 0.5rem; border-radius: 6px;
+    }
+    .error-msg {
+      color: var(--danger); font-size: 0.85rem; margin-top: 0.25rem;
+      display: none;
+    }
+    .error-msg.show { display: block; }
+    
+    @media (max-width: 480px) {
+      .card { padding: 1.25rem !important; }
+      .form-group label { font-size: 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loadingScreen">
+    <div class="loader">🚌</div>
+    <h1 class="mt-4">Student Bus Ticketing System</h1>
+    <p class="mt-2" style="opacity:0.8;">Loading your journey...</p>
+  </div>
+  
+  <!-- Auth Container -->
+  <div id="authContainer">
+    <div class="card" style="width:100%; max-width:420px;">
+      <h2 class="text-center mb-4" style="color:var(--primary);">
+        🔐 Login / Register
+        <span id="roleIndicator" class="role-badge role-student" style="display:none;"></span>
+      </h2>
+      
+      <!-- Tabs -->
+      <div style="display:flex; border-bottom:2px solid var(--border); margin-bottom:1.5rem;">
+        <button id="tabLogin" style="flex:1; padding:10px; background:none; border:none; border-bottom:3px solid var(--primary); color:var(--primary); font-weight:bold; cursor:pointer;">Login</button>
+        <button id="tabReg" style="flex:1; padding:10px; background:none; border:none; border-bottom:3px solid transparent; color:var(--muted); cursor:pointer;">Register</button>
+      </div>
+      
+      <!-- Email Login Form -->
+      <form id="loginForm">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="l_email" class="form-control" placeholder="you@example.com" required>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="l_pass" class="form-control" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Sign In</button>
+      </form>
+      
+      <!-- Email Register Form -->
+      <form id="registerForm" style="display:none;">
+        <div class="note-box">
+          🔒 <strong>Student</strong> accounts are instant.<br>
+          Staff roles (Driver/Conductor/Admin) require a verification key from your administrator.
+        </div>
+        
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input type="text" id="r_name" class="form-control" placeholder="Juan Dela Cruz" required>
+        </div>
+        
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" id="r_email" class="form-control" placeholder="you@school.edu" required>
+        </div>
+        
+        <div class="form-group">
+          <label>Password *</label>
+          <input type="password" id="r_pass" class="form-control" placeholder="Min. 6 characters" minlength="6" required>
+          <small class="text-muted" style="font-size:0.75rem;">Use a strong, unique password</small>
+        </div>
+        
+        <!-- 🔥 Role Selection -->
+        <div class="form-group">
+          <label>Account Type *</label>
+          <select id="r_role" class="form-control" onchange="toggleRoleKey()">
+            <option value="STUDENT">🎓 Student (Instant Access)</option>
+            <option value="DRIVER">🚌 Driver (Requires Key)</option>
+            <option value="CONDUCTOR">🎫 Conductor (Requires Key)</option>
+            <option value="ADMIN">⚙️ System Admin (Requires Key)</option>
+          </select>
+        </div>
+        
+        <!-- Dynamic Key Field (shown for staff roles) -->
+        <div class="form-group" id="keyField" style="display:none;">
+          <label>🔑 Verification Key *</label>
+          <input type="text" id="r_key" class="form-control" placeholder="Enter your staff key" autocomplete="off">
+          <small class="key-hint">
+            💡 Keys are provided by your system administrator:<br>
+            • Driver: <code>DRV-2026-SECURE</code><br>
+            • Conductor: <code>COND-2026-SECURE</code><br>
+            • Admin: <code>ADM-2026-MASTER</code>
+          </small>
+          <div id="keyError" class="error-msg">❌ Invalid verification key</div>
+        </div>
+        
+        <button type="submit" class="btn btn-success" style="width:100%;" id="regBtn">Create Account</button>
+      </form>
+      
+      <!-- 🔥 Google Sign-In Section -->
+      <div class="divider">or continue with</div>
+      <button id="googleBtn" class="google-btn">
+        <span class="google-icon"></span>
+        Continue with Google
+      </button>
+      
+      <p class="text-center mt-3" style="font-size:0.8rem; color:var(--muted);">
+        ⚠️ Google Sign-In creates a <strong>Student</strong> account instantly.<br>
+        For Driver/Conductor/Admin access, use email registration + verification key above.
+      </p>
+      
+      <p class="text-center mt-2" style="font-size:0.85rem; color:var(--muted);">
+        By continuing, you agree to our Terms & Privacy Policy.
+      </p>
+    </div>
+  </div>
+
+  <!-- 🔥 Firebase SDKs (Compat Mode for simplicity) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+  <script>
+    // 🔑 Your Firebase Config (Replace with your actual config)
+    const firebaseConfig = {
+      apiKey: "AIzaSyAQkX9xz-H0hc1EHG-bJYAkaQIUMPxrk5I",
+      authDomain: "cbfu-ad11f.firebaseapp.com",
+      databaseURL: "https://cbfu-ad11f-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "cbfu-ad11f",
+      storageBucket: "cbfu-ad11f.firebasestorage.app",
+      messagingSenderId: "251609733997",
+      appId: "1:251609733997:web:af865a60d2b3ad6fe39864",
+      measurementId: "G-HE68LCGPDS"
+    };
+    
+    // ✅ Initialize Firebase ONCE
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const auth = firebase.auth();
+    const db = firebase.database();
+    
+    // ✅ Enable Google Provider
+    const googleProvider = new firebase.auth.GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+    // 🔐 Role Key Validation Map 
+    // ⚠️ SECURITY NOTE: In production, move these to Firebase Remote Config or environment variables
+    // For now, these are client-side only (suitable for school projects with trusted users)
+    const ROLE_KEYS = {
+      'DRIVER': 'DRV-2026-SECURE',
+      'CONDUCTOR': 'COND-2026-SECURE', 
+      'ADMIN': 'ADM-2026-MASTER'
+    };
+
+    // 🔁 Toggle key field based on role selection
+    function toggleRoleKey() {
+      const role = document.getElementById('r_role').value;
+      const keyField = document.getElementById('keyField');
+      const keyInput = document.getElementById('r_key');
+      const keyError = document.getElementById('keyError');
+      const roleIndicator = document.getElementById('roleIndicator');
+      
+      // Update visual role indicator
+      roleIndicator.style.display = 'inline-block';
+      roleIndicator.textContent = role;
+      roleIndicator.className = 'role-badge role-' + role.toLowerCase();
+      
+      // Show/hide key field
+      if (role === 'STUDENT') {
+        keyField.style.display = 'none';
+        keyInput.required = false;
+        keyInput.value = '';
+        keyError.classList.remove('show');
+      } else {
+        keyField.style.display = 'block';
+        keyInput.required = true;
+      }
+    }
+
+    // 🔐 Auth State Listener - Handles redirects for ALL roles
+    auth.onAuthStateChanged(async (user) => {
+      // Hide loading screen once auth is checked
+      const loader = document.getElementById('loadingScreen');
+      const authContainer = document.getElementById('authContainer');
+      
+      if (loader.style.display !== 'none') {
+        loader.style.opacity = '0';
+        setTimeout(() => {
+          loader.style.display = 'none';
+          authContainer.style.display = 'flex';
+        }, 300);
+      }
+      
+      if (!user) {
+        console.log('🔐 No user logged in - showing auth screen');
+        return; // Stay on login page
+      }
+      
+      console.log('🔐 User authenticated:', user.email);
+      
+      try {
+        // Check if user profile exists in Realtime Database
+        const snap = await db.ref('users/' + user.uid).once('value');
+        
+        if (snap.exists()) {
+          // ✅ Profile exists - get role and redirect
+          const userData = snap.val();
+          const role = String(userData.role || 'STUDENT').toUpperCase().trim();
+          
+          console.log('🎯 User role:', role, '| UID:', user.uid);
+          
+          // Update last login timestamp
+          await db.ref('users/' + user.uid + '/lastLogin').set(firebase.database.ServerValue.TIMESTAMP);
+          
+          // Redirect map - sends user to correct dashboard
+          const redirectMap = {
+            'ADMIN': 'admin-dashboard.html',
+            'DRIVER': 'driver-dashboard.html',
+            'CONDUCTOR': 'conductor-dashboard.html',
+            'STUDENT': 'student-home.html'
+          };
+          
+          const targetPage = redirectMap[role] || 'student-home.html';
+          console.log('🔄 Redirecting to:', targetPage);
+          
+          // Small delay to ensure DB write completes
+          setTimeout(() => {
+            window.location.href = targetPage;
+          }, 100);
+          
+        } else {
+          // 🆕 First-time login (e.g., Google Sign-In) - auto-create STUDENT profile
+          console.log('🆕 Creating new student profile for:', user.email);
+          
+          await db.ref('users/' + user.uid).set({
+            name: user.displayName || user.email?.split('@')[0] || 'User',
+            email: user.email,
+            role: 'STUDENT',  // Default role for Google sign-in
+            photoURL: user.photoURL || null,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            lastLogin: firebase.database.ServerValue.TIMESTAMP,
+            studentId: null,
+            busId: null
+          });
+          
+          console.log('✅ Student profile created');
+          window.location.href = 'student-home.html';
+        }
+        
+      } catch (err) {
+        console.error('❌ Auth/Database error:', err);
+        // Fallback: redirect to student home if anything fails
+        window.location.href = 'student-home.html';
+      }
+    });
+
+    // 🔐 Google Sign-In Handler
+    document.getElementById('googleBtn').onclick = async () => {
+      const btn = document.getElementById('googleBtn');
+      const originalText = btn.innerHTML;
+      
+      try {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Signing in...';
+        
+        const result = await auth.signInWithPopup(googleProvider);
+        console.log('✅ Google sign-in successful:', result.user.email);
+        // Auth state listener handles profile creation & redirect
+        
+      } catch (err) {
+        console.error('❌ Google sign-in error:', err);
+        
+        if (err.code === 'auth/popup-closed-by-user') {
+          console.log('🚪 Popup closed by user');
+        } else if (err.code === 'auth/account-exists-with-different-credential') {
+          alert('⚠️ An account with this email already exists. Please sign in with email/password instead.');
+        } else {
+          alert("Google sign-in failed: " + err.message);
+        }
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    };
+
+    // 📝 REGISTER (Email/Password) with Role Support
+    document.getElementById('registerForm').onsubmit = async (e) => {
+      e.preventDefault();
+      
+      const name = document.getElementById('r_name').value.trim();
+      const email = document.getElementById('r_email').value.trim().toLowerCase();
+      const pass = document.getElementById('r_pass').value;
+      const role = document.getElementById('r_role').value;
+      const key = document.getElementById('r_key').value.trim();
+      const keyError = document.getElementById('keyError');
+      const regBtn = document.getElementById('regBtn');
+      
+      // Reset error state
+      keyError.classList.remove('show');
+      
+      // Basic validation
+      if (!name || !email || !pass) {
+        return alert('⚠️ Please fill in all required fields.');
+      }
+      if (pass.length < 6) {
+        return alert('⚠️ Password must be at least 6 characters.');
+      }
+      
+      // 🔐 Validate staff verification keys
+      if (role !== 'STUDENT') {
+        if (!key) {
+          keyError.textContent = '❌ Verification key is required for ' + role + ' accounts';
+          keyError.classList.add('show');
+          return;
+        }
+        if (ROLE_KEYS[role] && key !== ROLE_KEYS[role]) {
+          keyError.textContent = '❌ Invalid key for ' + role + ' role';
+          keyError.classList.add('show');
+          return;
+        }
+      }
+      
+      // Disable button during processing
+      regBtn.disabled = true;
+      const originalBtnText = regBtn.innerHTML;
+      regBtn.innerHTML = '⏳ Creating account...';
+      
+      try {
+        // 1️⃣ Create Firebase Auth user
+        console.log('🔐 Creating auth account for:', email);
+        const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
+        const user = userCredential.user;
+        
+        // 2️⃣ Prepare user profile for Realtime Database
+        const userProfile = {
+          uid: user.uid,
+          name: name,
+          email: email,
+          role: role,  // ✅ This is the key: role is saved automatically!
+          photoURL: null,
+          createdAt: firebase.database.ServerValue.TIMESTAMP,
+          lastLogin: firebase.database.ServerValue.TIMESTAMP,
+          studentId: null,
+          busId: null
+        };
+        
+        // Add role-specific default fields
+        if (role === 'DRIVER') {
+          userProfile.licenseNumber = null;
+          userProfile.vehicleAssigned = false;
+          userProfile.activeRoutes = [];
+        } else if (role === 'CONDUCTOR') {
+          userProfile.employeeId = null;
+          userProfile.assignedBuses = [];
+        } else if (role === 'ADMIN') {
+          userProfile.permissions = ['manage_buses', 'manage_staff', 'view_reports'];
+          userProfile.approvedBy = 'self-register'; // Track how admin was created
+        }
+        
+        // 3️⃣ Save profile to Firebase Realtime Database
+        console.log('💾 Saving profile to users/' + user.uid);
+        await db.ref('users/' + user.uid).set(userProfile);
+        
+        // 4️⃣ Show success & redirect
+        alert('✅ Account created successfully!\nRole: ' + role + '\n\nRedirecting...');
+        
+        // Redirect map
+        const redirectMap = {
+          'STUDENT': 'student-home.html',
+          'DRIVER': 'driver-dashboard.html',
+          'CONDUCTOR': 'conductor-dashboard.html',
+          'ADMIN': 'admin-dashboard.html'
+        };
+        
+        const targetPage = redirectMap[role] || 'student-home.html';
+        console.log('🔄 Redirecting to:', targetPage);
+        window.location.href = targetPage;
+        
+      } catch (err) {
+        console.error('❌ Registration error:', err);
+        
+        // Clean up auth user if DB write failed
+        if (err.code !== 'auth/email-already-in-use' && auth.currentUser) {
+          try {
+            await auth.currentUser.delete();
+            console.log('🗑️ Cleaned up auth user after DB error');
+          } catch (cleanupErr) {
+            console.warn('⚠️ Cleanup failed:', cleanupErr);
+          }
+        }
+        
+        // User-friendly error messages
+        const errorMessages = {
+          'auth/email-already-in-use': '❌ This email is already registered.',
+          'auth/invalid-email': '❌ Please enter a valid email address.',
+          'auth/weak-password': '❌ Password is too weak. Use at least 6 characters.',
+          'auth/network-request-failed': '❌ Network error. Check your internet connection.',
+          'auth/operation-not-allowed': '❌ Email/password sign-in is not enabled.'
+        };
+        
+        alert(errorMessages[err.code] || '❌ Registration failed: ' + err.message);
+        
+      } finally {
+        // Re-enable button
+        regBtn.disabled = false;
+        regBtn.innerHTML = originalBtnText;
+      }
+    };
+
+    // 🔐 LOGIN (Email/Password)
+    document.getElementById('loginForm').onsubmit = async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('l_email').value.trim().toLowerCase();
+      const pass = document.getElementById('l_pass').value;
+      const loginBtn = e.target.querySelector('button[type="submit"]');
+      
+      loginBtn.disabled = true;
+      const originalText = loginBtn.innerHTML;
+      loginBtn.innerHTML = '⏳ Signing in...';
+      
+      try {
+        await auth.signInWithEmailAndPassword(email, pass);
+        console.log('✅ Login successful');
+        // Redirect is handled by auth.onAuthStateChanged listener
+        
+      } catch (err) {
+        console.error('❌ Login error:', err);
+        
+        const errorMessages = {
+          'auth/user-not-found': '❌ No account found with this email.',
+          'auth/wrong-password': '❌ Incorrect password. Please try again.',
+          'auth/invalid-email': '❌ Invalid email format.',
+          'auth/network-request-failed': '❌ Network error. Check your connection.'
+        };
+        
+        alert(errorMessages[err.code] || '❌ Login failed: ' + err.message);
+        
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = originalText;
+      }
+    };
+
+    // 🔁 Tab Switching Logic
+    document.getElementById('tabLogin').onclick = function() {
+      document.getElementById('loginForm').style.display = 'block';
+      document.getElementById('registerForm').style.display = 'none';
+      this.style.borderBottomColor = 'var(--primary)'; 
+      this.style.color = 'var(--primary)';
+      document.getElementById('tabReg').style.borderBottomColor = 'transparent'; 
+      document.getElementById('tabReg').style.color = 'var(--muted)';
+      document.getElementById('roleIndicator').style.display = 'none';
+    };
+    
+    document.getElementById('tabReg').onclick = function() {
+      document.getElementById('registerForm').style.display = 'block';
+      document.getElementById('loginForm').style.display = 'none';
+      this.style.borderBottomColor = 'var(--primary)'; 
+      this.style.color = 'var(--primary)';
+      document.getElementById('tabLogin').style.borderBottomColor = 'transparent'; 
+      document.getElementById('tabLogin').style.color = 'var(--muted)';
+      // Initialize role indicator
+      toggleRoleKey();
+    };
+  </script>
+</body>
+</html>
